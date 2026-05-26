@@ -1,7 +1,7 @@
 /**
  * @file Obstaculo.c
  * @author Prof. Dr. David Buzatto
- * @brief Implementação do Obstáculo.
+ * @brief Implementação do Obstáculo (Template Cru).
  *
  * @copyright Copyright (c) 2026
  */
@@ -16,14 +16,12 @@
 /**
  * @brief Cria um novo obstáculo.
  */
-Obstaculo *criarObstaculo( Rectangle ret, Color cor, Rectangle fonte, Texture2D *textura ) {
+Obstaculo *criarObstaculo( Rectangle ret, Color cor ) {
 
     Obstaculo *novoObstaculo = (Obstaculo*) malloc( sizeof( Obstaculo ) );
 
     novoObstaculo->ret = ret;
     novoObstaculo->cor = cor;
-    novoObstaculo->fonte = fonte;
-    novoObstaculo->textura = textura;
 
     return novoObstaculo;
 
@@ -40,20 +38,8 @@ void destruirObstaculo( Obstaculo *o ) {
  * @brief Desenha um obstáculo.
  */
 void desenharObstaculo( Obstaculo *o ) {
-
-    if ( o->textura == NULL ) {
+    if ( o->cor.a > 0 ) {
         DrawRectangleRec( o->ret, o->cor );
         DrawRectangleLines( o->ret.x, o->ret.y, o->ret.width, o->ret.height, BLACK );
-        return;
     }
-
-    DrawTexturePro(
-        *o->textura, 
-        o->fonte,
-        o->ret,
-        (Vector2) { 0 },
-        0.0f,
-        WHITE
-    );
-
 }

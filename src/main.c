@@ -15,9 +15,9 @@
 int main( void ) {
 
     GameWindow *gameWindow = createGameWindow(
-        800,             // width
-        450,             // height
-        "Jogo de Sonic", // title
+        1600,             // width
+        566,             // height
+        "Jogo de Plataforma", // title
         60,              // target FPS
         false,           // antialiasing
         false,           // resizable
@@ -26,8 +26,8 @@ int main( void ) {
         false,           // always on top
         false,           // invisible background
         false,           // always run
-        true,            // load resources
-        true             // init audio
+        true,           // load resources
+        false            // init audio
     );
 
     initGameWindow( gameWindow );

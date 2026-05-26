@@ -1,20 +1,19 @@
 /**
  * @file Obstaculo.h
  * @author Prof. Dr. David Buzatto
- * @brief Declarações das funções do Obstáculo.
+ * @brief Declarações das funções do Obstáculo (Template Cru).
  *
  * @copyright Copyright (c) 2026
  */
 #pragma once
 
 #include "raylib/raylib.h"
-
 #include "Tipos.h"
 
 /**
  * @brief Cria um novo obstáculo.
  */
-Obstaculo *criarObstaculo( Rectangle ret, Color cor, Rectangle fonte, Texture2D *textura );
+Obstaculo *criarObstaculo( Rectangle ret, Color cor );
 
 /**
  * @brief Destroi um obstáculo.

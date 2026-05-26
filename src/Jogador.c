@@ -1,7 +1,7 @@
 /**
  * @file Jogador.c
  * @author Prof. Dr. David Buzatto
- * @brief Implementação do Jogador.
+ * @brief Implementação do Jogador (Template Cru).
  *
  * @copyright Copyright (c) 2026
  */
@@ -11,28 +11,14 @@
 
 #include "raylib/raylib.h"
 
-#include "Animacao.h"
-#include "Inimigo.h"
-#include "InimigoMotobug.h"
-#include "Item.h"
-#include "ItemAnel.h"
 #include "Macros.h"
 #include "Jogador.h"
 #include "Mapa.h"
 #include "ResourceManager.h"
 #include "Tipos.h"
 
-static void desenharQuadroAnimacaoJogador( Jogador *j, QuadroAnimacao *qa, Color tonalidade );
-static QuadroAnimacao *getQuadroAnimacaoAtualJogador( Jogador *j );
-static Animacao *getAnimacaoAtualJogador( Jogador *j );
-
 static void resolverColisaoJogadorObstaculosMapaX( Jogador *j, Mapa *mapa );
 static void resolverColisaoJogadorObstaculosMapaY( Jogador *j, Mapa *mapa );
-
-static void resolverColisaoJogadorItensMapa( Jogador *j, Mapa *mapa );
-static void resolverColisaoJogadorInimigosMapa( Jogador *j, Mapa *mapa );
-
-static const bool MOSTRAR_RETANGULOS = false;
 
 /**
  * @brief Cria uma instância alocada dinamicamente da struct Jogador.
@@ -49,193 +35,23 @@ Jogador *criarJogador( float x, float y, float w, float h ) {
 
     novoJogador->cor = BLUE;
 
-    novoJogador->velAndando = 200;
-    novoJogador->velAndandoRapido = 400;
-    novoJogador->velCorrendo = 800;
-    novoJogador->velPulo = -550;
+    novoJogador->velAndando = 300;
+    novoJogador->velPulo = -500;
     novoJogador->velMaxQueda = 600;
 
-    novoJogador->aceleracao = 200;
-    novoJogador->desaceleracao = 400;
-    novoJogador->frenagem = 1800;
+    novoJogador->aceleracao = 1000;
+    novoJogador->desaceleracao = 800;
 
     novoJogador->quantidadePulos = 0;
     novoJogador->quantidadeMaxPulos = 1;
 
-    novoJogador->quantidadeAneis = 0;
     novoJogador->quantidadeVidas = 3;
     novoJogador->score = 0;
 
-    novoJogador->invulneravel = false;
-    novoJogador->tempoInvulnerabilidade = 3.0f;
-    novoJogador->contadorTempoInvulnerabilidade = 0.0f;
-
-    novoJogador->piscaPisca = false;
-    novoJogador->tempoPiscaPisca = 0.05f;
-    novoJogador->contadorTempoPiscaPisca = 0.0f;
-
-    novoJogador->freando = false;
-
     novoJogador->estado = ESTADO_JOGADOR_PARADO;
     novoJogador->olhandoParaDireita = true;
-
-    int quantidadeAnimacoes = 0;
-
-    novoJogador->animacaoParado.quantidadeQuadros = 1;
-    novoJogador->animacaoParado.quadroAtual = 0;
-    novoJogador->animacaoParado.contadorTempoQuadro = 0.0f;
-    novoJogador->animacaoParado.pararNoUltimoQuadro = false;
-    novoJogador->animacaoParado.executarUmaVez = false;
-    novoJogador->animacaoParado.finalizada = false;
-    criarQuadrosAnimacao( &novoJogador->animacaoParado, novoJogador->animacaoParado.quantidadeQuadros );
-    inicializarQuadrosAnimacao( 
-        novoJogador->animacaoParado.quadros,
-        novoJogador->animacaoParado.quantidadeQuadros,
-        1000,            // duração padrão para todos os quadros
-        24, 251,         // início
-        48, 48,          // dimensões
-        4,               // separação
-        false,           // de trás para frente
-        (Rectangle) {    // retângulo de colisão padrão para cada quadro
-            32, 20, 42, 76
-            //18, 20, 54, 76
-        }
-    );
-
-    novoJogador->animacaoAndando.quantidadeQuadros = 8;
-    novoJogador->animacaoAndando.quadroAtual = 0;
-    novoJogador->animacaoAndando.contadorTempoQuadro = 0.0f;
-    novoJogador->animacaoAndando.pararNoUltimoQuadro = false;
-    novoJogador->animacaoAndando.executarUmaVez = false;
-    novoJogador->animacaoAndando.finalizada = false;
-    criarQuadrosAnimacao( &novoJogador->animacaoAndando, novoJogador->animacaoAndando.quantidadeQuadros );
-    inicializarQuadrosAnimacao( 
-        novoJogador->animacaoAndando.quadros,
-        novoJogador->animacaoAndando.quantidadeQuadros,
-        80,              // duração padrão para cada quadro
-        664, 324,        // início
-        48, 48,          // dimensões
-        4,               // separação
-        false,           // de trás para frente
-        (Rectangle) {    // retângulo de colisão padrão para cada quadro
-            32, 20, 42, 76
-            //18, 20, 54, 76
-        }
-    );
-
-    novoJogador->animacaoAndandoRapido.quantidadeQuadros = 8;
-    novoJogador->animacaoAndandoRapido.quadroAtual = 0;
-    novoJogador->animacaoAndandoRapido.contadorTempoQuadro = 0.0f;
-    novoJogador->animacaoAndandoRapido.pararNoUltimoQuadro = false;
-    novoJogador->animacaoAndandoRapido.executarUmaVez = false;
-    novoJogador->animacaoAndandoRapido.finalizada = false;
-    criarQuadrosAnimacao( &novoJogador->animacaoAndandoRapido, novoJogador->animacaoAndandoRapido.quantidadeQuadros );
-    inicializarQuadrosAnimacao( 
-        novoJogador->animacaoAndandoRapido.quadros,
-        novoJogador->animacaoAndandoRapido.quantidadeQuadros,
-        40,              // duração padrão para cada quadro
-        664, 324,        // início
-        48, 48,          // dimensões
-        4,               // separação
-        false,           // de trás para frente
-        (Rectangle) {    // retângulo de colisão padrão para cada quadro
-            32, 20, 42, 76
-            //18, 20, 54, 76
-        }
-    );
-
-    novoJogador->animacaoCorrendo.quantidadeQuadros = 4;
-    novoJogador->animacaoCorrendo.quadroAtual = 0;
-    novoJogador->animacaoCorrendo.contadorTempoQuadro = 0.0f;
-    novoJogador->animacaoCorrendo.pararNoUltimoQuadro = false;
-    novoJogador->animacaoCorrendo.executarUmaVez = false;
-    novoJogador->animacaoCorrendo.finalizada = false;
-    criarQuadrosAnimacao( &novoJogador->animacaoCorrendo, novoJogador->animacaoCorrendo.quantidadeQuadros );
-    inicializarQuadrosAnimacao( 
-        novoJogador->animacaoCorrendo.quadros,
-        novoJogador->animacaoCorrendo.quantidadeQuadros,
-        20,              // duração padrão para cada quadro
-        24, 397,         // início
-        48, 48,          // dimensões
-        4,               // separação
-        false,           // de trás para frente
-        (Rectangle) {    // retângulo de colisão padrão para cada quadro
-            32, 20, 42, 76
-            //18, 20, 54, 76
-        }
-    );
-
-    novoJogador->animacaoPulando.quantidadeQuadros = 4;
-    novoJogador->animacaoPulando.quadroAtual = 0;
-    novoJogador->animacaoPulando.contadorTempoQuadro = 0.0f;
-    novoJogador->animacaoPulando.pararNoUltimoQuadro = false;
-    novoJogador->animacaoPulando.executarUmaVez = false;
-    novoJogador->animacaoPulando.finalizada = false;
-    criarQuadrosAnimacao( &novoJogador->animacaoPulando, novoJogador->animacaoPulando.quantidadeQuadros );
-    inicializarQuadrosAnimacao( 
-        novoJogador->animacaoPulando.quadros,
-        novoJogador->animacaoPulando.quantidadeQuadros,
-        40,              // duração padrão para cada quadro
-        248, 397,        // início
-        48, 48,          // dimensões
-        4,               // separação
-        false,           // de trás para frente
-        (Rectangle) {    // retângulo de colisão padrão para cada quadro
-            32, 46, 42, 50
-            //18, 36, 60, 60
-        }
-    );
-
-    novoJogador->animacaoPulandoRapido.quantidadeQuadros = 4;
-    novoJogador->animacaoPulandoRapido.quadroAtual = 0;
-    novoJogador->animacaoPulandoRapido.contadorTempoQuadro = 0.0f;
-    novoJogador->animacaoPulandoRapido.pararNoUltimoQuadro = false;
-    novoJogador->animacaoPulandoRapido.executarUmaVez = false;
-    novoJogador->animacaoPulandoRapido.finalizada = false;
-    criarQuadrosAnimacao( &novoJogador->animacaoPulandoRapido, novoJogador->animacaoPulandoRapido.quantidadeQuadros );
-    inicializarQuadrosAnimacao(
-        novoJogador->animacaoPulandoRapido.quadros,
-        novoJogador->animacaoPulandoRapido.quantidadeQuadros,
-        25,              // duração padrão para cada quadro
-        248, 397,        // início
-        48, 48,          // dimensões
-        4,               // separação
-        false,           // de trás para frente
-        (Rectangle) {    // retângulo de colisão padrão para cada quadro
-            32, 46, 42, 50
-            //18, 36, 60, 60
-        }
-    );
-
-    novoJogador->animacaoPulandoCorrendo.quantidadeQuadros = 4;
-    novoJogador->animacaoPulandoCorrendo.quadroAtual = 0;
-    novoJogador->animacaoPulandoCorrendo.contadorTempoQuadro = 0.0f;
-    novoJogador->animacaoPulandoCorrendo.pararNoUltimoQuadro = false;
-    novoJogador->animacaoPulandoCorrendo.executarUmaVez = false;
-    novoJogador->animacaoPulandoCorrendo.finalizada = false;
-    criarQuadrosAnimacao( &novoJogador->animacaoPulandoCorrendo, novoJogador->animacaoPulandoCorrendo.quantidadeQuadros );
-    inicializarQuadrosAnimacao(
-        novoJogador->animacaoPulandoCorrendo.quadros,
-        novoJogador->animacaoPulandoCorrendo.quantidadeQuadros,
-        15,              // duração padrão para cada quadro
-        248, 397,        // início
-        48, 48,          // dimensões
-        4,               // separação
-        false,           // de trás para frente
-        (Rectangle) {    // retângulo de colisão padrão para cada quadro
-            32, 46, 42, 50
-            //18, 36, 60, 60
-        }
-    );
-
-    novoJogador->animacoes[ESTADO_JOGADOR_PARADO] = &novoJogador->animacaoParado; quantidadeAnimacoes++;
-    novoJogador->animacoes[ESTADO_JOGADOR_ANDANDO] = &novoJogador->animacaoAndando; quantidadeAnimacoes++;
-    novoJogador->animacoes[ESTADO_JOGADOR_ANDANDO_RAPIDO] = &novoJogador->animacaoAndandoRapido; quantidadeAnimacoes++;
-    novoJogador->animacoes[ESTADO_JOGADOR_CORRENDO] = &novoJogador->animacaoCorrendo; quantidadeAnimacoes++;
-    novoJogador->animacoes[ESTADO_JOGADOR_PULANDO] = &novoJogador->animacaoPulando; quantidadeAnimacoes++;
-    novoJogador->animacoes[ESTADO_JOGADOR_PULANDO_RAPIDO] = &novoJogador->animacaoPulandoRapido; quantidadeAnimacoes++;
-    novoJogador->animacoes[ESTADO_JOGADOR_PULANDO_CORRENDO] = &novoJogador->animacaoPulandoCorrendo; quantidadeAnimacoes++;
-    novoJogador->quantidadeAnimacoes = quantidadeAnimacoes;
+    novoJogador->animTimer = 0.0f;
+    novoJogador->animFrame = 0;
 
     return novoJogador;
 
@@ -246,9 +62,6 @@ Jogador *criarJogador( float x, float y, float w, float h ) {
  */
 void destruirJogador( Jogador *j ) {
     if ( j != NULL ) {
-        for ( int i = 0; i < j->quantidadeAnimacoes; i++ ) {
-            destruirQuadrosAnimacao( j->animacoes[i] );
-        }
         free( j );
     }
 }
@@ -258,92 +71,43 @@ void destruirJogador( Jogador *j ) {
  */
 void entradaJogador( Jogador *j, float delta ) {
 
-    EstadoJogador estadoAnterior = j->estado;
-
-    bool direitaDown  = IsKeyDown( KEY_RIGHT )     || ( IsGamepadAvailable( 0 ) && IsGamepadButtonDown( 0, GAMEPAD_BUTTON_LEFT_FACE_RIGHT ) );
-    bool esquerdaDown = IsKeyDown( KEY_LEFT )      || ( IsGamepadAvailable( 0 ) && IsGamepadButtonDown( 0, GAMEPAD_BUTTON_LEFT_FACE_LEFT ) );
-    bool puloPressed  = IsKeyPressed( KEY_SPACE )  || ( IsGamepadAvailable( 0 ) && IsGamepadButtonDown( 0, GAMEPAD_BUTTON_RIGHT_FACE_DOWN ) );
+    bool direitaDown  = IsKeyDown( KEY_RIGHT ) || IsKeyDown( KEY_D );
+    bool esquerdaDown = IsKeyDown( KEY_LEFT )  || IsKeyDown( KEY_A );
+    bool puloPressed  = IsKeyPressed( KEY_SPACE ) || IsKeyPressed( KEY_W ) || IsKeyPressed( KEY_UP );
 
     if ( direitaDown ) {
-        if ( j->vel.x < 0 ) {
-            j->vel.x += j->frenagem * delta;
-            if ( !j->freando && j->estado == ESTADO_JOGADOR_CORRENDO ) {
-                PlaySound( rm.somFrenagem );
-                j->freando = true;
-            }
-            if ( j->vel.x > 0 ) {
-                j->vel.x = 0;
-                j->freando = false;
-            }
-        } else {
-            j->vel.x += j->aceleracao * delta;
-            if ( j->vel.x > j->velCorrendo ) {
-                j->vel.x = j->velCorrendo;
-            }
+        j->vel.x += j->aceleracao * delta;
+        if ( j->vel.x > j->velAndando ) {
+            j->vel.x = j->velAndando;
         }
         j->olhandoParaDireita = true;
     } else if ( esquerdaDown ) {
-        if ( j->vel.x > 0 ) {
-            j->vel.x -= j->frenagem * delta;
-            if ( !j->freando && j->estado == ESTADO_JOGADOR_CORRENDO ) {
-                PlaySound( rm.somFrenagem );
-                j->freando = true;
-            }
-            if ( j->vel.x < 0 ) {
-                j->vel.x = 0;
-                j->freando = false;
-            }
-        } else {
-            j->vel.x -= j->aceleracao * delta;
-            if ( j->vel.x < -j->velCorrendo ) {
-                j->vel.x = -j->velCorrendo;
-            }
+        j->vel.x -= j->aceleracao * delta;
+        if ( j->vel.x < -j->velAndando ) {
+            j->vel.x = -j->velAndando;
         }
         j->olhandoParaDireita = false;
     } else {
         if ( j->vel.x > 0 ) {
             j->vel.x -= j->desaceleracao * delta;
-            if ( j->vel.x < 0 ) {
-                j->vel.x = 0;
-            }
+            if ( j->vel.x < 0 ) j->vel.x = 0;
         } else if ( j->vel.x < 0 ) {
             j->vel.x += j->desaceleracao * delta;
-            if ( j->vel.x > 0 ) {
-                j->vel.x = 0;
-            }
+            if ( j->vel.x > 0 ) j->vel.x = 0;
         }
     }
 
-    float absVelX = fabsf( j->vel.x );
     if ( j->quantidadePulos > 0 ) {
-        if ( absVelX <= j->velAndando ) {
-            j->estado = ESTADO_JOGADOR_PULANDO;
-        } else if ( absVelX <= j->velAndandoRapido ) {
-            j->estado = ESTADO_JOGADOR_PULANDO_RAPIDO;
-        } else {
-            j->estado = ESTADO_JOGADOR_PULANDO_CORRENDO;
-        }
-    } else if ( absVelX < 1.0f ) {
-        j->estado = ESTADO_JOGADOR_PARADO;
-    } else if ( absVelX <= j->velAndando ) {
+        j->estado = ESTADO_JOGADOR_PULANDO;
+    } else if ( fabsf( j->vel.x ) > 1.0f ) {
         j->estado = ESTADO_JOGADOR_ANDANDO;
-    } else if ( absVelX <= j->velAndandoRapido ) {
-        j->estado = ESTADO_JOGADOR_ANDANDO_RAPIDO;
     } else {
-        j->estado = ESTADO_JOGADOR_CORRENDO;
+        j->estado = ESTADO_JOGADOR_PARADO;
     }
 
     if ( puloPressed && j->quantidadePulos < j->quantidadeMaxPulos ) {
         j->vel.y = j->velPulo;
         j->quantidadePulos++;
-        PlaySound( rm.somPulo );
-    }
-
-    // sincronização de animações andando e andando rápido
-    if ( estadoAnterior == ESTADO_JOGADOR_ANDANDO && j->estado == ESTADO_JOGADOR_ANDANDO_RAPIDO ) {
-        sincronizarAnimacao( &j->animacaoAndandoRapido, &j->animacaoAndando );
-    } else if ( estadoAnterior == ESTADO_JOGADOR_ANDANDO_RAPIDO && j->estado == ESTADO_JOGADOR_ANDANDO ) {
-        sincronizarAnimacao( &j->animacaoAndando, &j->animacaoAndandoRapido );
     }
 
 }
@@ -353,32 +117,11 @@ void entradaJogador( Jogador *j, float delta ) {
  */
 void atualizarJogador( Jogador *j, GameWorld *gw, float delta ) {
 
-    if ( j->invulneravel ) {
-
-        j->contadorTempoPiscaPisca += delta;
-        if ( j->contadorTempoPiscaPisca >= j->tempoPiscaPisca ) {
-            j->contadorTempoPiscaPisca = 0.0f;
-            j->piscaPisca = !j->piscaPisca;
-        }
-
-        j->contadorTempoInvulnerabilidade += delta;
-        if ( j->contadorTempoInvulnerabilidade >= j->tempoInvulnerabilidade ) {
-            j->contadorTempoInvulnerabilidade = 0.0f;
-            j->invulneravel = false;
-            j->contadorTempoPiscaPisca = 0.0f;
-            j->piscaPisca = false;
-        }
-
-    }
-
-    Animacao *animacaoAtual = getAnimacaoAtualJogador( j );
-    atualizarAnimacao( animacaoAtual, delta );
-
-    // fase X: move horizontalmente e resolve colisões laterais
+    // Eixo X: Move horizontalmente e resolve colisões
     j->ret.x += j->vel.x * delta;
     resolverColisaoJogadorObstaculosMapaX( j, gw->mapa );
 
-    // fase Y: aplica gravidade, move verticalmente e resolve colisões verticais
+    // Eixo Y: Aplica gravidade, move verticalmente e resolve colisões
     j->vel.y += gw->gravidade * delta;
     if ( j->vel.y > j->velMaxQueda ) {
         j->vel.y = j->velMaxQueda;
@@ -386,24 +129,36 @@ void atualizarJogador( Jogador *j, GameWorld *gw, float delta ) {
     j->ret.y += j->vel.y * delta;
     resolverColisaoJogadorObstaculosMapaY( j, gw->mapa );
 
-    resolverColisaoJogadorItensMapa( j, gw->mapa );
-    resolverColisaoJogadorInimigosMapa( j, gw->mapa );
-
     // Se o jogador cair do mapa, perde uma vida e respawna
     float limiteQueda = calcularAlturaMapa( gw->mapa );
     if ( j->ret.y > limiteQueda ) {
         j->quantidadeVidas--;
-        PlaySound( rm.somMorte );
         
         // Respawnar jogador na posição inicial
-        j->ret.x = GetScreenWidth() / 2.0f + 144.0f;
-        j->ret.y = limiteQueda - 196.0f;
+        j->ret.x = 150.0f;
+        j->ret.y = 220.0f - j->ret.height;
         j->vel = (Vector2){ 0, 0 };
-        j->invulneravel = true;
-        j->contadorTempoInvulnerabilidade = 0.0f;
-        j->piscaPisca = false;
-        j->contadorTempoPiscaPisca = 0.0f;
+        j->quantidadePulos = 0;
         j->estado = ESTADO_JOGADOR_PARADO;
+    }
+
+    // Atualiza a animação do urso polar
+    if ( j->estado == ESTADO_JOGADOR_PARADO ) {
+        j->animTimer = 0.0f;
+        j->animFrame = 0;
+    } else if ( j->estado == ESTADO_JOGADOR_ANDANDO ) {
+        // Velocidade da animação proporcional à velocidade do jogador (fps base = 12.0)
+        float animSpeed = ( fabsf( j->vel.x ) / j->velAndando ) * 12.0f;
+        if ( animSpeed < 4.0f ) animSpeed = 4.0f; // velocidade mínima para movimento sutil
+        j->animTimer += delta * animSpeed;
+        j->animFrame = (int) j->animTimer;
+    } else if ( j->estado == ESTADO_JOGADOR_PULANDO ) {
+        if ( j->vel.y < 0 ) {
+            j->animFrame = 3; // Subindo (linha 1 col 4 / walk_frames[3])
+        } else {
+            j->animFrame = 5; // Caindo (linha 1 col 6 / walk_frames[5])
+        }
+        j->animTimer = 0.0f;
     }
 
 }
@@ -413,54 +168,41 @@ void atualizarJogador( Jogador *j, GameWorld *gw, float delta ) {
  */
 void desenharJogador( Jogador *j ) {
 
-    if ( !j->piscaPisca ) {
-        QuadroAnimacao *qa = getQuadroAnimacaoAtualJogador( j );
-        desenharQuadroAnimacaoJogador( j, qa, WHITE );
+    // Retângulos dos frames da animação de andar
+    static const Rectangle walk_frames[6] = {
+        { 8, 119, 51, 65 },
+        { 72, 123, 49, 61 },
+        { 128, 122, 48, 62 },
+        { 192, 116, 48, 68 },
+        { 248, 126, 52, 58 },
+        { 312, 125, 49, 59 }
+    };
+
+
+
+    Rectangle src;
+    if ( j->estado == ESTADO_JOGADOR_PARADO ) {
+        src = walk_frames[0];
+    } else if ( j->estado == ESTADO_JOGADOR_ANDANDO ) {
+        src = walk_frames[j->animFrame % 6];
+    } else { // ESTADO_JOGADOR_PULANDO
+        src = walk_frames[j->animFrame % 6];
     }
 
-    if ( MOSTRAR_RETANGULOS ) {
-        DrawRectangleRec( j->ret, Fade( j->cor, 0.5f ) );
-        DrawRectangleLines( j->ret.x, j->ret.y, j->ret.width, j->ret.height, BLACK );
+    // Inverte a imagem horizontalmente se o jogador estiver olhando para a esquerda
+    if ( !j->olhandoParaDireita ) {
+        src.width = -src.width;
     }
 
-}
+    // Centraliza horizontalmente o urso em relação ao retângulo físico (width=20)
+    // E alinha a base (pés) perfeitamente ao chão físico (y + height)
+    float drawW = fabsf( src.width );
+    float drawH = src.height;
+    float drawX = ( j->ret.x + j->ret.width / 2.0f ) - drawW / 2.0f;
+    float drawY = ( j->ret.y + j->ret.height ) - drawH;
 
-static void desenharQuadroAnimacaoJogador( Jogador *j, QuadroAnimacao *qa, Color tonalidade ) {
+    DrawTextureRec( rm.polarbear, src, (Vector2){ drawX, drawY }, WHITE );
 
-    if ( qa != NULL ) {
-
-        DrawTexturePro(
-            rm.texturaJogador,
-            (Rectangle) {
-                qa->fonte.x,
-                qa->fonte.y,
-                j->olhandoParaDireita ? qa->fonte.width : -qa->fonte.width,
-                qa->fonte.height
-            },
-            j->ret,
-            (Vector2) { 0 },
-            0.0f,
-            tonalidade
-        );
-
-        if ( MOSTRAR_RETANGULOS ) {
-            float xDesenho = j->olhandoParaDireita
-                ? j->ret.x + qa->retColisao.x
-                : j->ret.x + j->ret.width - qa->retColisao.x - qa->retColisao.width;
-            float yDesenho = j->ret.y + qa->retColisao.y;
-            DrawRectangle( xDesenho, yDesenho, qa->retColisao.width, qa->retColisao.height, Fade( GREEN, 0.5f ) );
-        }
-
-    }
-
-}
-
-static QuadroAnimacao *getQuadroAnimacaoAtualJogador( Jogador *j ) {
-    return getQuadroAtualAnimacao( getAnimacaoAtualJogador( j ) );
-}
-
-static Animacao *getAnimacaoAtualJogador( Jogador *j ) {
-    return j->animacoes[j->estado];
 }
 
 /**
@@ -471,34 +213,18 @@ static void resolverColisaoJogadorObstaculosMapaX( Jogador *j, Mapa *mapa ) {
     ElementoMapa *el = mapa->obstaculos;
 
     while ( el != NULL ) {
-
-        QuadroAnimacao *qa = getQuadroAnimacaoAtualJogador( j );
-
-        float deslocamentoX = j->olhandoParaDireita
-            ? qa->retColisao.x
-            : j->ret.width - qa->retColisao.x - qa->retColisao.width;
-        float deslocamentoY = qa->retColisao.y;
-
-        Rectangle retColCalculado = {
-            j->ret.x + deslocamentoX,
-            j->ret.y + deslocamentoY,
-            qa->retColisao.width,
-            qa->retColisao.height
-        };
-
         Obstaculo *o = (Obstaculo*) el->objeto;
 
-        if ( CheckCollisionRecs( retColCalculado, o->ret ) ) {
-            if ( retColCalculado.x + retColCalculado.width / 2 < o->ret.x + o->ret.width / 2 ) {
-                j->ret.x = o->ret.x - qa->retColisao.width - deslocamentoX;
+        if ( CheckCollisionRecs( j->ret, o->ret ) ) {
+            if ( j->ret.x + j->ret.width / 2.0f < o->ret.x + o->ret.width / 2.0f ) {
+                j->ret.x = o->ret.x - j->ret.width;
             } else {
-                j->ret.x = o->ret.x + o->ret.width - deslocamentoX;
+                j->ret.x = o->ret.x + o->ret.width;
             }
             j->vel.x = 0;
         }
 
         el = el->proximo;
-
     }
 
 }
@@ -511,170 +237,19 @@ static void resolverColisaoJogadorObstaculosMapaY( Jogador *j, Mapa *mapa ) {
     ElementoMapa *el = mapa->obstaculos;
 
     while ( el != NULL ) {
-
-        QuadroAnimacao *qa = getQuadroAnimacaoAtualJogador( j );
-
-        float deslocamentoX = j->olhandoParaDireita
-            ? qa->retColisao.x
-            : j->ret.width - qa->retColisao.x - qa->retColisao.width;
-        float deslocamentoY = qa->retColisao.y;
-
-        Rectangle retColCalculado = {
-            j->ret.x + deslocamentoX,
-            j->ret.y + deslocamentoY,
-            qa->retColisao.width,
-            qa->retColisao.height
-        };
-
         Obstaculo *o = (Obstaculo*) el->objeto;
 
-        if ( CheckCollisionRecs( retColCalculado, o->ret ) ) {
-            if ( retColCalculado.y + retColCalculado.height / 2 < o->ret.y + o->ret.height / 2 ) {
-                j->ret.y = o->ret.y - qa->retColisao.height - deslocamentoY;
+        if ( CheckCollisionRecs( j->ret, o->ret ) ) {
+            if ( j->ret.y + j->ret.height / 2.0f < o->ret.y + o->ret.height / 2.0f ) {
+                j->ret.y = o->ret.y - j->ret.height;
                 j->quantidadePulos = 0;
             } else {
-                j->ret.y = o->ret.y + o->ret.height - deslocamentoY;
+                j->ret.y = o->ret.y + o->ret.height;
             }
             j->vel.y = 0;
         }
 
         el = el->proximo;
-
-    }
-
-}
-
-static void resolverColisaoJogadorItensMapa( Jogador *j, Mapa *mapa ) {
-
-    ElementoMapa *el = mapa->itens;
-
-    while ( el != NULL ) {
-
-        QuadroAnimacao *qa = getQuadroAnimacaoAtualJogador( j );
-
-        float deslocamentoX = j->olhandoParaDireita
-            ? qa->retColisao.x
-            : j->ret.width - qa->retColisao.x - qa->retColisao.width;
-        float deslocamentoY = qa->retColisao.y;
-
-        Rectangle retColCalculado = {
-            j->ret.x + deslocamentoX,
-            j->ret.y + deslocamentoY,
-            qa->retColisao.width,
-            qa->retColisao.height
-        };
-
-        Item *item = (Item*) el->objeto;
-
-        if ( item->tipo == TIPO_ITEM_ANEL ) {
-
-            ItemAnel *itemAnel = (ItemAnel*) item->objeto;
-
-            if ( !itemAnel->ativo || itemAnel->estado == ESTADO_ITEM_ANEL_COLETADO ) {
-                el = el->proximo;
-                continue;
-            }
-
-            QuadroAnimacao *qaItem = getQuadroAnimacaoAtualItemAnel( itemAnel );
-            
-            Rectangle retColItemCalculado = {
-                itemAnel->ret.x + qaItem->retColisao.x,
-                itemAnel->ret.y + qaItem->retColisao.y,
-                qaItem->retColisao.width,
-                qaItem->retColisao.height
-            };
-
-            if ( CheckCollisionRecs( retColCalculado, retColItemCalculado ) ) {
-                itemAnel->estado = ESTADO_ITEM_ANEL_COLETADO;
-                j->quantidadeAneis++;
-                PlaySound( rm.somAnel );
-            }
-
-        }
-
-        el = el->proximo;
-
-    }
-
-}
-
-static void resolverColisaoJogadorInimigosMapa( Jogador *j, Mapa *mapa ) {
-
-    ElementoMapa *el = mapa->inimigos;
-
-    while ( el != NULL ) {
-
-        QuadroAnimacao *qa = getQuadroAnimacaoAtualJogador( j );
-
-        float deslocamentoX = j->olhandoParaDireita
-            ? qa->retColisao.x
-            : j->ret.width - qa->retColisao.x - qa->retColisao.width;
-        float deslocamentoY = qa->retColisao.y;
-
-        Rectangle retColCalculado = {
-            j->ret.x + deslocamentoX,
-            j->ret.y + deslocamentoY,
-            qa->retColisao.width,
-            qa->retColisao.height
-        };
-
-        Inimigo *inimigo = (Inimigo*) el->objeto;
-
-        QuadroAnimacao *qaInimigo = NULL;
-        bool *olhandoParaDireita = NULL;
-        Rectangle *ret = NULL;
-
-        if ( inimigo->tipo == TIPO_INIMIGO_MOTOBUG ) {
-
-            InimigoMotobug *motobug = (InimigoMotobug*) inimigo->objeto;
-
-            if ( !motobug->ativo || motobug->estado == ESTADO_INIMIGO_MOTOBUG_MORRENDO ) {
-                el = el->proximo;
-                continue;
-            }
-
-            qaInimigo = getQuadroAnimacaoAtualInimigoMotobug( motobug );
-            olhandoParaDireita = &motobug->olhandoParaDireita;
-            ret = &motobug->ret;
-
-            float deslocamentoX = *olhandoParaDireita
-                ? ret->width - qaInimigo->retColisao.x - qaInimigo->retColisao.width
-                : qaInimigo->retColisao.x;
-            float deslocamentoY = qaInimigo->retColisao.y;
-
-            Rectangle retColInimigoCalculado = {
-                ret->x + deslocamentoX,
-                ret->y + deslocamentoY,
-                qaInimigo->retColisao.width,
-                qaInimigo->retColisao.height
-            };
-
-            if ( CheckCollisionRecs( retColCalculado, retColInimigoCalculado ) ) {
-
-                if ( j->estado >= ESTADO_JOGADOR_PULANDO && j->estado <= ESTADO_JOGADOR_PULANDO_CORRENDO ) {
-                    j->vel.y = j->velPulo;
-                    motobug->estado = ESTADO_INIMIGO_MOTOBUG_MORRENDO;
-                    j->score += 100;
-                    PlaySound( rm.somHitInimigo );
-                } else if ( !j->invulneravel ) {
-                    if ( j->quantidadeAneis > 0 ) {
-                        j->quantidadeAneis = 0;
-                        PlaySound( rm.somHitComAnel );
-                    } else {
-                        j->quantidadeVidas--;
-                        PlaySound( rm.somMorte );
-                    }
-                    j->invulneravel = true;
-                }
-
-                return; // um inimigo de cada vez!
-
-            }
-
-        }
-
-        el = el->proximo;
-
     }
 
 }
