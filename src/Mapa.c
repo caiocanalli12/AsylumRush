@@ -32,20 +32,47 @@ Mapa *carregarMapa( const char *caminhoArquivo ) {
     novoMapa->linhas = 283;
     novoMapa->colunas = 10603;
 
-    ElementoMapa *el = (ElementoMapa*) malloc( sizeof( ElementoMapa ) );
-    el->proximo = NULL;
-
-    el->objeto = criarObstaculo( 
+    // Segmento 1 do chao: 0 ate 1451
+    ElementoMapa *el1 = (ElementoMapa*) malloc( sizeof( ElementoMapa ) );
+    el1->proximo = NULL;
+    el1->objeto = criarObstaculo( 
         (Rectangle) { 
             .x = 0, 
             .y = 220, 
-            .width = 10603, 
+            .width = 1451, 
             .height = 63
         },
         BLANK
     );
+    inserirObstaculo( novoMapa, el1 );
 
-    inserirObstaculo( novoMapa, el );
+    // Segmento 2 do chao: 1642 ate 9343
+    ElementoMapa *el2 = (ElementoMapa*) malloc( sizeof( ElementoMapa ) );
+    el2->proximo = NULL;
+    el2->objeto = criarObstaculo( 
+        (Rectangle) { 
+            .x = 1642, 
+            .y = 220, 
+            .width = 7701, 
+            .height = 63
+        },
+        BLANK
+    );
+    inserirObstaculo( novoMapa, el2 );
+
+    // Segmento 3 do chao: 9415 ate 10603
+    ElementoMapa *el3 = (ElementoMapa*) malloc( sizeof( ElementoMapa ) );
+    el3->proximo = NULL;
+    el3->objeto = criarObstaculo( 
+        (Rectangle) { 
+            .x = 9415, 
+            .y = 220, 
+            .width = 1188, 
+            .height = 63
+        },
+        BLANK
+    );
+    inserirObstaculo( novoMapa, el3 );
 
     return novoMapa;
 

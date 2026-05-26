@@ -18,7 +18,7 @@
 #include "Tipos.h"
 
 static void resolverColisaoJogadorObstaculosMapaX( Jogador *j, Mapa *mapa );
-static void resolverColisaoJogadorObstaculosMapaY( Jogador *j, Mapa *mapa );
+static bool jogadorNoChao( Jogador *j, Mapa *mapa );
 
 /**
  * @brief Cria uma instância alocada dinamicamente da struct Jogador.
@@ -52,6 +52,10 @@ Jogador *criarJogador( float x, float y, float w, float h ) {
     novoJogador->olhandoParaDireita = true;
     novoJogador->animTimer = 0.0f;
     novoJogador->animFrame = 0;
+    novoJogador->puloY = 0.0f;
+    novoJogador->puloVel = 0.0f;
+    novoJogador->noPulo = false;
+    novoJogador->noMezanino = false;
 
     return novoJogador;
 
@@ -69,11 +73,59 @@ void destruirJogador( Jogador *j ) {
 /**
  * @brief Lê a entrada do usuário e atualiza as velocidades do jogador.
  */
-void entradaJogador( Jogador *j, float delta ) {
+static bool jogadorNoChao( Jogador *j, Mapa *mapa ) {
+    float cx = j->ret.x + j->ret.width / 2.0f;
+    ElementoMapa *el = mapa->obstaculos;
+    while ( el != NULL ) {
+        Obstaculo *o = (Obstaculo*) el->objeto;
+        if ( o->ret.y == 220.0f ) {
+            // Tolerancia de 12 pixels nas bordas para diminuir a hitbox de queda e permitir pulo perto das bordas
+            float tolerancia = 12.0f;
+            if ( cx >= o->ret.x - tolerancia && cx <= o->ret.x + o->ret.width + tolerancia ) {
+                return true;
+            }
+        }
+        el = el->proximo;
+    }
+    return false;
+}
+
+static float obterCurbRua( float x ) {
+    if ( x < 8300.0f ) {
+        return 180.0f;
+    }
+    if ( x > 8600.0f ) {
+        return 252.0f;
+    }
+    return 180.0f + 0.24f * ( x - 8300.0f );
+}
+
+static bool jogadorNoChaoCustom( Jogador *j, Mapa *mapa ) {
+    float cx = j->ret.x + j->ret.width / 2.0f;
+    if ( cx < 8300.0f ) {
+        return jogadorNoChao( j, mapa );
+    }
+    if ( j->noMezanino ) {
+        return true; // Always on ground inside mezzanine Y range [140, 180]
+    } else {
+        float feet_y = j->ret.y + j->ret.height;
+        float curb = obterCurbRua( cx );
+        if ( feet_y >= curb ) {
+            return jogadorNoChao( j, mapa );
+        }
+    }
+    return false; // Falling between mezzanine and street
+}
+
+
+
+void entradaJogador( Jogador *j, GameWorld *gw, float delta ) {
 
     bool direitaDown  = IsKeyDown( KEY_RIGHT ) || IsKeyDown( KEY_D );
     bool esquerdaDown = IsKeyDown( KEY_LEFT )  || IsKeyDown( KEY_A );
-    bool puloPressed  = IsKeyPressed( KEY_SPACE ) || IsKeyPressed( KEY_W ) || IsKeyPressed( KEY_UP );
+    bool cimaDown     = IsKeyDown( KEY_UP )    || IsKeyDown( KEY_W );
+    bool baixoDown    = IsKeyDown( KEY_DOWN )  || IsKeyDown( KEY_S );
+    bool espacoPressed = IsKeyPressed( KEY_SPACE );
 
     if ( direitaDown ) {
         j->vel.x += j->aceleracao * delta;
@@ -97,17 +149,46 @@ void entradaJogador( Jogador *j, float delta ) {
         }
     }
 
-    if ( j->quantidadePulos > 0 ) {
-        j->estado = ESTADO_JOGADOR_PULANDO;
-    } else if ( fabsf( j->vel.x ) > 1.0f ) {
+    // Permite mover verticalmente na rua durante o pulo ou no chao
+    if ( j->noPulo || jogadorNoChaoCustom( j, gw->mapa ) ) {
+        if ( cimaDown ) {
+            j->vel.y -= j->aceleracao * delta;
+            if ( j->vel.y < -j->velAndando ) {
+                j->vel.y = -j->velAndando;
+            }
+        } else if ( baixoDown ) {
+            j->vel.y += j->aceleracao * delta;
+            if ( j->vel.y > j->velAndando ) {
+                j->vel.y = j->velAndando;
+            }
+        } else {
+            if ( j->vel.y > 0 ) {
+                j->vel.y -= j->desaceleracao * delta;
+                if ( j->vel.y < 0 ) j->vel.y = 0;
+            } else if ( j->vel.y < 0 ) {
+                j->vel.y += j->desaceleracao * delta;
+                if ( j->vel.y > 0 ) j->vel.y = 0;
+            }
+        }
+    }
+
+    // Pular com espaço (apenas se nao estiver no pulo e estiver no chao)
+    if ( espacoPressed && !j->noPulo && jogadorNoChaoCustom( j, gw->mapa ) ) {
+        j->noPulo = true;
+        j->puloVel = -350.0f; // velocidade inicial para cima
+        j->puloY = 0.0f;
+    }
+
+
+
+    if ( !j->noPulo && !jogadorNoChaoCustom( j, gw->mapa ) ) {
+        j->estado = ESTADO_JOGADOR_PULANDO; // Queda no buraco/mezanino
+    } else if ( j->noPulo ) {
+        j->estado = ESTADO_JOGADOR_PULANDO; // Pulo ativo
+    } else if ( fabsf( j->vel.x ) > 1.0f || fabsf( j->vel.y ) > 1.0f ) {
         j->estado = ESTADO_JOGADOR_ANDANDO;
     } else {
         j->estado = ESTADO_JOGADOR_PARADO;
-    }
-
-    if ( puloPressed && j->quantidadePulos < j->quantidadeMaxPulos ) {
-        j->vel.y = j->velPulo;
-        j->quantidadePulos++;
     }
 
 }
@@ -117,17 +198,84 @@ void entradaJogador( Jogador *j, float delta ) {
  */
 void atualizarJogador( Jogador *j, GameWorld *gw, float delta ) {
 
-    // Eixo X: Move horizontalmente e resolve colisões
+    // Eixo X: Move horizontalmente e resolve colisões do mapa
     j->ret.x += j->vel.x * delta;
     resolverColisaoJogadorObstaculosMapaX( j, gw->mapa );
 
-    // Eixo Y: Aplica gravidade, move verticalmente e resolve colisões
-    j->vel.y += gw->gravidade * delta;
-    if ( j->vel.y > j->velMaxQueda ) {
-        j->vel.y = j->velMaxQueda;
+    // Eixo Y: Move verticalmente ou cai sob gravidade
+    float feet_y = j->ret.y + j->ret.height;
+    float cx = j->ret.x + j->ret.width / 2.0f;
+    if ( cx < 8300.0f ) {
+        j->noMezanino = ( feet_y <= 180.0f );
     }
-    j->ret.y += j->vel.y * delta;
-    resolverColisaoJogadorObstaculosMapaY( j, gw->mapa );
+
+    // Desce automaticamente do mezanino no final da passarela (monte de neve)
+    if ( j->noMezanino && cx >= 9300.0f ) {
+        j->noMezanino = false;
+    }
+
+    if ( j->noPulo || jogadorNoChaoCustom( j, gw->mapa ) ) {
+        j->ret.y += j->vel.y * delta;
+        feet_y = j->ret.y + j->ret.height;
+        
+        if ( cx < 8300.0f ) {
+            // Região unificada: clamp entre o topo da rua (180) e o fundo (283)
+            if ( feet_y < 180.0f ) feet_y = 180.0f;
+            if ( feet_y > 283.0f ) feet_y = 283.0f;
+            j->ret.y = feet_y - j->ret.height;
+        } else {
+            // Região com declive e mezanino (x >= 8300.0f)
+            if ( j->noMezanino ) {
+                if ( feet_y < 140.0f ) feet_y = 140.0f;
+                if ( feet_y > 180.0f ) feet_y = 180.0f;
+                j->ret.y = feet_y - j->ret.height;
+                
+
+            } else {
+                float curb = obterCurbRua( cx );
+                if ( feet_y < curb ) {
+                    if ( j->vel.y < 0.0f ) {
+                        feet_y = curb;
+                    }
+                }
+                if ( feet_y > 283.0f ) feet_y = 283.0f;
+                j->ret.y = feet_y - j->ret.height;
+            }
+        }
+    } else {
+        // Zera o estado do pulo normal e cai no buraco
+        j->noPulo = false;
+        j->puloY = 0.0f;
+        
+        j->vel.y += gw->gravidade * delta;
+        if ( j->vel.y > j->velMaxQueda ) {
+            j->vel.y = j->velMaxQueda;
+        }
+        j->ret.y += j->vel.y * delta;
+        
+        // Pousar na rua/curb apenas na região do mezanino (x >= 8300)
+        // Na região plana (x < 8300) o jogador cai livremente no buraco até o respawn
+        if ( cx >= 8300.0f ) {
+            feet_y = j->ret.y + j->ret.height;
+            float curb = obterCurbRua( cx );
+            if ( feet_y >= curb ) {
+                feet_y = curb;
+                j->ret.y = feet_y - j->ret.height;
+                j->vel.y = 0.0f;
+            }
+        }
+    }
+
+    // Processamento do pulo com gravidade interna
+    if ( j->noPulo ) {
+        j->puloVel += gw->gravidade * delta;
+        j->puloY += j->puloVel * delta;
+        if ( j->puloY >= 0.0f ) {
+            j->puloY = 0.0f;
+            j->puloVel = 0.0f;
+            j->noPulo = false;
+        }
+    }
 
     // Se o jogador cair do mapa, perde uma vida e respawna
     float limiteQueda = calcularAlturaMapa( gw->mapa );
@@ -139,6 +287,8 @@ void atualizarJogador( Jogador *j, GameWorld *gw, float delta ) {
         j->ret.y = 220.0f - j->ret.height;
         j->vel = (Vector2){ 0, 0 };
         j->quantidadePulos = 0;
+        j->noPulo = false;
+        j->puloY = 0.0f;
         j->estado = ESTADO_JOGADOR_PARADO;
     }
 
@@ -148,12 +298,14 @@ void atualizarJogador( Jogador *j, GameWorld *gw, float delta ) {
         j->animFrame = 0;
     } else if ( j->estado == ESTADO_JOGADOR_ANDANDO ) {
         // Velocidade da animação proporcional à velocidade do jogador (fps base = 12.0)
-        float animSpeed = ( fabsf( j->vel.x ) / j->velAndando ) * 12.0f;
+        float currentSpeed = sqrtf( j->vel.x * j->vel.x + j->vel.y * j->vel.y );
+        float animSpeed = ( currentSpeed / j->velAndando ) * 12.0f;
         if ( animSpeed < 4.0f ) animSpeed = 4.0f; // velocidade mínima para movimento sutil
         j->animTimer += delta * animSpeed;
         j->animFrame = (int) j->animTimer;
     } else if ( j->estado == ESTADO_JOGADOR_PULANDO ) {
-        if ( j->vel.y < 0 ) {
+        float vertical_vel = j->noPulo ? j->puloVel : j->vel.y;
+        if ( vertical_vel < 0 ) {
             j->animFrame = 3; // Subindo (linha 1 col 4 / walk_frames[3])
         } else {
             j->animFrame = 5; // Caindo (linha 1 col 6 / walk_frames[5])
@@ -178,8 +330,6 @@ void desenharJogador( Jogador *j ) {
         { 312, 125, 49, 59 }
     };
 
-
-
     Rectangle src;
     if ( j->estado == ESTADO_JOGADOR_PARADO ) {
         src = walk_frames[0];
@@ -194,14 +344,21 @@ void desenharJogador( Jogador *j ) {
         src.width = -src.width;
     }
 
-    // Centraliza horizontalmente o urso em relação ao retângulo físico (width=20)
-    // E alinha a base (pés) perfeitamente ao chão físico (y + height)
-    float drawW = fabsf( src.width );
-    float drawH = src.height;
-    float drawX = ( j->ret.x + j->ret.width / 2.0f ) - drawW / 2.0f;
-    float drawY = ( j->ret.y + j->ret.height ) - drawH;
+    // Escalonamento suave por perspectiva de profundidade baseado na posição Y dos pés
+    float feet_y = j->ret.y + j->ret.height;
+    float t = ( feet_y - 220.0f ) / 103.0f; // varia de ~ -0.39 a ~ 0.61
+    float scale = 1.0f + t * 0.25f; // escala varia suavemente de ~ 0.90 ate ~ 1.15
 
-    DrawTextureRec( rm.polarbear, src, (Vector2){ drawX, drawY }, WHITE );
+    float drawW = fabsf( src.width ) * scale;
+    float drawH = src.height * scale;
+    float drawX = ( j->ret.x + j->ret.width / 2.0f ) - drawW / 2.0f;
+    // Aplicamos o offset vertical do pulo escalonado de acordo com a profundidade
+    float drawY = ( feet_y + j->puloY * scale ) - drawH;
+
+    Rectangle dest = { drawX, drawY, drawW, drawH };
+    Vector2 origin = { 0, 0 };
+
+    DrawTexturePro( rm.polarbear, src, dest, origin, 0.0f, WHITE );
 
 }
 
@@ -215,6 +372,12 @@ static void resolverColisaoJogadorObstaculosMapaX( Jogador *j, Mapa *mapa ) {
     while ( el != NULL ) {
         Obstaculo *o = (Obstaculo*) el->objeto;
 
+        // Ignora colisões horizontais com os blocos de chão em 2.5D
+        if ( o->ret.y == 220.0f ) {
+            el = el->proximo;
+            continue;
+        }
+
         if ( CheckCollisionRecs( j->ret, o->ret ) ) {
             if ( j->ret.x + j->ret.width / 2.0f < o->ret.x + o->ret.width / 2.0f ) {
                 j->ret.x = o->ret.x - j->ret.width;
@@ -222,31 +385,6 @@ static void resolverColisaoJogadorObstaculosMapaX( Jogador *j, Mapa *mapa ) {
                 j->ret.x = o->ret.x + o->ret.width;
             }
             j->vel.x = 0;
-        }
-
-        el = el->proximo;
-    }
-
-}
-
-/**
- * @brief Resolve colisões do jogador com o mapa no eixo Y.
- */
-static void resolverColisaoJogadorObstaculosMapaY( Jogador *j, Mapa *mapa ) {
-
-    ElementoMapa *el = mapa->obstaculos;
-
-    while ( el != NULL ) {
-        Obstaculo *o = (Obstaculo*) el->objeto;
-
-        if ( CheckCollisionRecs( j->ret, o->ret ) ) {
-            if ( j->ret.y + j->ret.height / 2.0f < o->ret.y + o->ret.height / 2.0f ) {
-                j->ret.y = o->ret.y - j->ret.height;
-                j->quantidadePulos = 0;
-            } else {
-                j->ret.y = o->ret.y + o->ret.height;
-            }
-            j->vel.y = 0;
         }
 
         el = el->proximo;

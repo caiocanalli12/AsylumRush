@@ -56,7 +56,7 @@ void updateGameWorld( GameWorld *gw, float delta ) {
     Jogador *j = gw->jogador;
     gw->tempoDeJogo += delta;
     atualizarMapa( gw->mapa, gw, delta );
-    entradaJogador( j, delta );
+    entradaJogador( j, gw, delta );
     atualizarJogador( j, gw, delta );
     atualizarCamera( gw );
 
@@ -73,8 +73,18 @@ void drawGameWorld( GameWorld *gw ) {
     BeginMode2D( gw->camera );
     desenharFundo( gw );
     desenharMapa( gw->mapa );
+    // Cerca: fica ATRÁS do jogador quando ele está na rua, e À FRENTE quando está no mezanino
+    bool noMezanino = gw->jogador->noMezanino;
+    if ( !noMezanino ) {
+        DrawTexture( rm.mezzanine_railing, 8300, 130, WHITE );
+    }
     desenharJogador( gw->jogador );
+    if ( noMezanino ) {
+        DrawTexture( rm.mezzanine_railing, 8300, 130, WHITE );
+    }
     EndMode2D();
+
+
 
 
     EndDrawing();
@@ -96,11 +106,14 @@ static void atualizarCamera( GameWorld *gw ) {
     Jogador *j = gw->jogador;
     Camera2D *c = &gw->camera;
 
+    // Zoom dinâmico: mantém os 283px de altura do mundo preenchendo a tela (proporção correta)
+    c->zoom = GetScreenHeight() / 283.0f;
+
     c->offset.x = GetScreenWidth() / 2.0f;
     c->offset.y = GetScreenHeight() / 2.0f;
 
     c->target.x = roundf( j->ret.x + j->ret.width / 2.0f );
-    c->target.y = 283.0f / 2.0f; // Centraliza verticalmente a fase de altura 283 na tela de altura 450
+    c->target.y = 283.0f / 2.0f; // Centraliza verticalmente a fase de altura 283 na tela
 
     int minX = (GetScreenWidth() / c->zoom) / 2;
     int maxX = calcularLarguraMapa( gw->mapa ) - (GetScreenWidth() / c->zoom) / 2;
@@ -112,6 +125,7 @@ static void atualizarCamera( GameWorld *gw ) {
     }
 
 }
+
 
 static void inicializar( GameWorld *gw ) {
 
@@ -126,7 +140,7 @@ static void inicializar( GameWorld *gw ) {
         .offset = { 0 },
         .target = { 0 },
         .rotation = 0.0f,
-        .zoom = 2.0f
+        .zoom = GetScreenHeight() / 283.0f  // Ajusta zoom para a altura do mundo (283px) preencher a tela
     };
 
     gw->gravidade = 900;

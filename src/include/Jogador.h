@@ -22,7 +22,7 @@ void destruirJogador( Jogador *j );
 /**
  * @brief Lê a entrada do usuário e atualiza as velocidades do jogador.
  */
-void entradaJogador( Jogador *j, float delta );
+void entradaJogador( Jogador *j, GameWorld *gw, float delta );
 
 /**
  * @brief Aplica física e resolve colisões do jogador com o mundo.

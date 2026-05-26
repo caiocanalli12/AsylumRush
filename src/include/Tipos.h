@@ -47,6 +47,11 @@ typedef struct Jogador {
     float animTimer;
     int animFrame;
 
+    float puloY;
+    float puloVel;
+    bool noPulo;
+    bool noMezanino;
+
 } Jogador;
 
 /**
