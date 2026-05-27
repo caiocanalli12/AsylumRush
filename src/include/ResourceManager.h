@@ -12,6 +12,7 @@
 typedef struct ResourceManager {
     Texture2D frozensuburbs;
     Texture2D polarbear;
+    Texture2D fly_attack_polarbear;
     Texture2D mezzanine_railing;
 } ResourceManager;
 

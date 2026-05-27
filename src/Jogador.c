@@ -57,6 +57,15 @@ Jogador *criarJogador( float x, float y, float w, float h ) {
     novoJogador->noPulo = false;
     novoJogador->noMezanino = false;
 
+    novoJogador->socando = false;
+    novoJogador->socandoFrame = 0;
+    novoJogador->socandoTimer = 0.0f;
+    novoJogador->socandoCooldown = 0.0f;
+
+    novoJogador->socoAereo = false;
+    novoJogador->socoAereoAterrissou = false;
+    novoJogador->socoAereoCooldown = 0.0f;
+
     return novoJogador;
 
 }
@@ -127,19 +136,65 @@ void entradaJogador( Jogador *j, GameWorld *gw, float delta ) {
     bool baixoDown    = IsKeyDown( KEY_DOWN )  || IsKeyDown( KEY_S );
     bool espacoPressed = IsKeyPressed( KEY_SPACE );
 
-    if ( direitaDown ) {
-        j->vel.x += j->aceleracao * delta;
-        if ( j->vel.x > j->velAndando ) {
-            j->vel.x = j->velAndando;
+    // Durante o cooldown do soco (frame 3) ou cooldown do soco aereo, o jogador nao pode se mover nem pular
+    bool emCooldownSoco = j->socando && j->socandoFrame == 3;
+    bool emCooldownAereo = j->socoAereoAterrissou; // cooldown do pouso aereo
+    bool bloqueado = emCooldownSoco || emCooldownAereo;
+
+    if ( !bloqueado ) {
+        if ( direitaDown ) {
+            j->vel.x += j->aceleracao * delta;
+            if ( j->vel.x > j->velAndando ) {
+                j->vel.x = j->velAndando;
+            }
+            j->olhandoParaDireita = true;
+        } else if ( esquerdaDown ) {
+            j->vel.x -= j->aceleracao * delta;
+            if ( j->vel.x < -j->velAndando ) {
+                j->vel.x = -j->velAndando;
+            }
+            j->olhandoParaDireita = false;
+        } else {
+            if ( j->vel.x > 0 ) {
+                j->vel.x -= j->desaceleracao * delta;
+                if ( j->vel.x < 0 ) j->vel.x = 0;
+            } else if ( j->vel.x < 0 ) {
+                j->vel.x += j->desaceleracao * delta;
+                if ( j->vel.x > 0 ) j->vel.x = 0;
+            }
         }
-        j->olhandoParaDireita = true;
-    } else if ( esquerdaDown ) {
-        j->vel.x -= j->aceleracao * delta;
-        if ( j->vel.x < -j->velAndando ) {
-            j->vel.x = -j->velAndando;
+
+        // Permite mover verticalmente na rua durante o pulo ou no chao
+        if ( j->noPulo || jogadorNoChaoCustom( j, gw->mapa ) ) {
+            if ( cimaDown ) {
+                j->vel.y -= j->aceleracao * delta;
+                if ( j->vel.y < -j->velAndando ) {
+                    j->vel.y = -j->velAndando;
+                }
+            } else if ( baixoDown ) {
+                j->vel.y += j->aceleracao * delta;
+                if ( j->vel.y > j->velAndando ) {
+                    j->vel.y = j->velAndando;
+                }
+            } else {
+                if ( j->vel.y > 0 ) {
+                    j->vel.y -= j->desaceleracao * delta;
+                    if ( j->vel.y < 0 ) j->vel.y = 0;
+                } else if ( j->vel.y < 0 ) {
+                    j->vel.y += j->desaceleracao * delta;
+                    if ( j->vel.y > 0 ) j->vel.y = 0;
+                }
+            }
         }
-        j->olhandoParaDireita = false;
+
+        // Pular com espaço (apenas se nao estiver no pulo e estiver no chao)
+        if ( espacoPressed && !j->noPulo && jogadorNoChaoCustom( j, gw->mapa ) ) {
+            j->noPulo = true;
+            j->puloVel = -350.0f; // velocidade inicial para cima
+            j->puloY = 0.0f;
+        }
     } else {
+        // Cooldown ativo: desacelera naturalmente sem aceitar input
         if ( j->vel.x > 0 ) {
             j->vel.x -= j->desaceleracao * delta;
             if ( j->vel.x < 0 ) j->vel.x = 0;
@@ -147,36 +202,30 @@ void entradaJogador( Jogador *j, GameWorld *gw, float delta ) {
             j->vel.x += j->desaceleracao * delta;
             if ( j->vel.x > 0 ) j->vel.x = 0;
         }
-    }
-
-    // Permite mover verticalmente na rua durante o pulo ou no chao
-    if ( j->noPulo || jogadorNoChaoCustom( j, gw->mapa ) ) {
-        if ( cimaDown ) {
-            j->vel.y -= j->aceleracao * delta;
-            if ( j->vel.y < -j->velAndando ) {
-                j->vel.y = -j->velAndando;
-            }
-        } else if ( baixoDown ) {
-            j->vel.y += j->aceleracao * delta;
-            if ( j->vel.y > j->velAndando ) {
-                j->vel.y = j->velAndando;
-            }
-        } else {
-            if ( j->vel.y > 0 ) {
-                j->vel.y -= j->desaceleracao * delta;
-                if ( j->vel.y < 0 ) j->vel.y = 0;
-            } else if ( j->vel.y < 0 ) {
-                j->vel.y += j->desaceleracao * delta;
-                if ( j->vel.y > 0 ) j->vel.y = 0;
-            }
+        if ( j->vel.y > 0 ) {
+            j->vel.y -= j->desaceleracao * delta;
+            if ( j->vel.y < 0 ) j->vel.y = 0;
+        } else if ( j->vel.y < 0 ) {
+            j->vel.y += j->desaceleracao * delta;
+            if ( j->vel.y > 0 ) j->vel.y = 0;
         }
     }
 
-    // Pular com espaço (apenas se nao estiver no pulo e estiver no chao)
-    if ( espacoPressed && !j->noPulo && jogadorNoChaoCustom( j, gw->mapa ) ) {
-        j->noPulo = true;
-        j->puloVel = -350.0f; // velocidade inicial para cima
-        j->puloY = 0.0f;
+
+    // Soco simples (chao): inicia ao pressionar F estando no chao e sem socar
+    if ( IsKeyPressed( KEY_F ) && !j->socando && !j->socoAereo && !j->socoAereoAterrissou ) {
+        if ( jogadorNoChaoCustom( j, gw->mapa ) && !j->noPulo ) {
+            // Soco no chao
+            j->socando = true;
+            j->socandoFrame = 0;
+            j->socandoTimer = 0.0f;
+            j->socandoCooldown = 0.0f;
+        } else if ( j->noPulo ) {
+            // Soco aereo
+            j->socoAereo = true;
+            j->socoAereoAterrissou = false;
+            j->socoAereoCooldown = 0.0f;
+        }
     }
 
 
@@ -185,6 +234,10 @@ void entradaJogador( Jogador *j, GameWorld *gw, float delta ) {
         j->estado = ESTADO_JOGADOR_PULANDO; // Queda no buraco/mezanino
     } else if ( j->noPulo ) {
         j->estado = ESTADO_JOGADOR_PULANDO; // Pulo ativo
+    } else if ( j->socoAereoAterrissou ) {
+        j->estado = ESTADO_JOGADOR_SOCANDO; // Cooldown de pouso aereo
+    } else if ( j->socando ) {
+        j->estado = ESTADO_JOGADOR_SOCANDO; // Soco no chao em andamento
     } else if ( fabsf( j->vel.x ) > 1.0f || fabsf( j->vel.y ) > 1.0f ) {
         j->estado = ESTADO_JOGADOR_ANDANDO;
     } else {
@@ -293,7 +346,30 @@ void atualizarJogador( Jogador *j, GameWorld *gw, float delta ) {
     }
 
     // Atualiza a animação do urso polar
-    if ( j->estado == ESTADO_JOGADOR_PARADO ) {
+    if ( j->socando ) {
+        // Duracao de cada frame da animacao de soco (em segundos)
+        // Sequencia: L2C3 -> L2C2 -> L2C4 -> L2C5(cooldown 0.5s)
+        static const float socoDuracao[4] = { 0.08f, 0.08f, 0.12f, 0.5f };
+
+        if ( j->socandoFrame < 3 ) {
+            // Frames intermediarios: avanca apos a duracao
+            j->socandoTimer += delta;
+            if ( j->socandoTimer >= socoDuracao[j->socandoFrame] ) {
+                j->socandoTimer = 0.0f;
+                j->socandoFrame++;
+            }
+        } else {
+            // Frame 3 = cooldown no L2C5
+            j->socandoCooldown += delta;
+            if ( j->socandoCooldown >= socoDuracao[3] ) {
+                // Soco terminou
+                j->socando = false;
+                j->socandoFrame = 0;
+                j->socandoTimer = 0.0f;
+                j->socandoCooldown = 0.0f;
+            }
+        }
+    } else if ( j->estado == ESTADO_JOGADOR_PARADO ) {
         j->animTimer = 0.0f;
         j->animFrame = 0;
     } else if ( j->estado == ESTADO_JOGADOR_ANDANDO ) {
@@ -313,6 +389,22 @@ void atualizarJogador( Jogador *j, GameWorld *gw, float delta ) {
         j->animTimer = 0.0f;
     }
 
+    // Soco aereo: detecta aterrissagem quando o pulo termina e o jogador esta no chao
+    if ( j->socoAereo && !j->socoAereoAterrissou ) {
+        if ( !j->noPulo && jogadorNoChaoCustom( j, gw->mapa ) ) {
+            j->socoAereoAterrissou = true;
+            j->socoAereoCooldown = 0.0f;
+        }
+    }
+    if ( j->socoAereoAterrissou ) {
+        j->socoAereoCooldown += delta;
+        if ( j->socoAereoCooldown >= 0.5f ) {
+            j->socoAereo = false;
+            j->socoAereoAterrissou = false;
+            j->socoAereoCooldown = 0.0f;
+        }
+    }
+
 }
 
 /**
@@ -320,7 +412,7 @@ void atualizarJogador( Jogador *j, GameWorld *gw, float delta ) {
  */
 void desenharJogador( Jogador *j ) {
 
-    // Retângulos dos frames da animação de andar
+    // Retângulos dos frames da animação de andar (linha 1 da spritesheet)
     static const Rectangle walk_frames[6] = {
         { 8, 119, 51, 65 },
         { 72, 123, 49, 61 },
@@ -330,12 +422,40 @@ void desenharJogador( Jogador *j ) {
         { 312, 125, 49, 59 }
     };
 
+    // Retângulos dos frames de soco (linha 2 da spritesheet)
+    // Sequencia: socandoFrame 0=L2C3, 1=L2C2, 2=L2C4, 3=L2C5
+    static const Rectangle punch_frames[4] = {
+        { 144, 195, 33, 69 },  // L2C3 - inicio do soco (preparacao)
+        {  80, 195, 55, 69 },  // L2C2 - recuo do brao
+        { 192, 195, 64, 69 },  // L2C4 - soco lancado
+        { 264, 195, 40, 69 }   // L2C5 - cooldown (brao estendido)
+    };
+
+    // Frames do soco aereo: F1=no ar soando, F2=pouso/cooldown
+    static const Rectangle fly_frames[2] = {
+        { 160, 33, 248, 241 },  // F1 - soco no ar
+        { 501, 33, 203, 241 }   // F2 - aterrissagem (cooldown)
+    };
+
+    // Escolhe textura e frame
+    Texture2D tex = rm.polarbear;
     Rectangle src;
-    if ( j->estado == ESTADO_JOGADOR_PARADO ) {
+
+    if ( j->socoAereo || j->socoAereoAterrissou ) {
+        // Soco aereo: usa fly_attack_polarbear
+        tex = rm.fly_attack_polarbear;
+        src = j->socoAereoAterrissou ? fly_frames[1] : fly_frames[0];
+    } else if ( j->estado == ESTADO_JOGADOR_SOCANDO ) {
+        tex = rm.polarbear;
+        src = punch_frames[j->socandoFrame];
+    } else if ( j->estado == ESTADO_JOGADOR_PARADO ) {
+        tex = rm.polarbear;
         src = walk_frames[0];
     } else if ( j->estado == ESTADO_JOGADOR_ANDANDO ) {
+        tex = rm.polarbear;
         src = walk_frames[j->animFrame % 6];
     } else { // ESTADO_JOGADOR_PULANDO
+        tex = rm.polarbear;
         src = walk_frames[j->animFrame % 6];
     }
 
@@ -346,19 +466,31 @@ void desenharJogador( Jogador *j ) {
 
     // Escalonamento suave por perspectiva de profundidade baseado na posição Y dos pés
     float feet_y = j->ret.y + j->ret.height;
-    float t = ( feet_y - 220.0f ) / 103.0f; // varia de ~ -0.39 a ~ 0.61
-    float scale = 1.0f + t * 0.25f; // escala varia suavemente de ~ 0.90 ate ~ 1.15
+    float t = ( feet_y - 220.0f ) / 103.0f;
+    float scale = 1.0f + t * 0.25f;
 
-    float drawW = fabsf( src.width ) * scale;
-    float drawH = src.height * scale;
-    float drawX = ( j->ret.x + j->ret.width / 2.0f ) - drawW / 2.0f;
-    // Aplicamos o offset vertical do pulo escalonado de acordo com a profundidade
+    float drawW, drawH;
+    if ( j->socoAereo || j->socoAereoAterrissou ) {
+        // Normaliza os frames aereos para a mesma altura dos frames normais (~69px)
+        // sem isso eles ficam enormes pois o src tem 241px de altura
+        float targetH = 69.0f * scale;
+        float aspect = fabsf( src.width ) / src.height;
+        drawH = targetH;
+        drawW = targetH * aspect;
+        if ( !j->olhandoParaDireita ) drawW = -drawW;
+    } else {
+        drawW = fabsf( src.width ) * scale;
+        drawH = src.height * scale;
+    }
+
+    float drawX = ( j->ret.x + j->ret.width / 2.0f ) - fabsf( drawW ) / 2.0f;
     float drawY = ( feet_y + j->puloY * scale ) - drawH;
 
     Rectangle dest = { drawX, drawY, drawW, drawH };
     Vector2 origin = { 0, 0 };
 
-    DrawTexturePro( rm.polarbear, src, dest, origin, 0.0f, WHITE );
+    DrawTexturePro( tex, src, dest, origin, 0.0f, WHITE );
+
 
 }
 

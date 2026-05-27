@@ -17,6 +17,7 @@ typedef enum EstadoJogador {
     ESTADO_JOGADOR_PARADO,
     ESTADO_JOGADOR_ANDANDO,
     ESTADO_JOGADOR_PULANDO,
+    ESTADO_JOGADOR_SOCANDO,
 } EstadoJogador;
 
 /**
@@ -51,6 +52,17 @@ typedef struct Jogador {
     float puloVel;
     bool noPulo;
     bool noMezanino;
+
+    // Soco simples (chao)
+    bool socando;          // true enquanto a animacao de soco esta ativa
+    int socandoFrame;      // frame atual da sequencia (0-3)
+    float socandoTimer;    // tempo acumulado no frame atual
+    float socandoCooldown; // tempo restante de cooldown no frame final
+
+    // Soco aereo (no ar)
+    bool socoAereo;           // true: soco aereo ativo (F pressionado no ar)
+    bool socoAereoAterrissou; // true: ja pousou, exibindo frame de pouso
+    float socoAereoCooldown;  // tempo de cooldown apos aterrissar (0.5s)
 
 } Jogador;
 
