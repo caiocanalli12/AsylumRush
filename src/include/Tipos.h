@@ -11,6 +11,15 @@
 #include "raylib/raylib.h"
 
 /**
+ * @brief Representa a tela/estado atual do jogo.
+ */
+typedef enum EstadoTela {
+    TELA_MENU,
+    TELA_JOGO,
+    TELA_PAUSE,
+} EstadoTela;
+
+/**
  * @brief Representa o estado do jogador.
  */
 typedef enum EstadoJogador {
@@ -110,5 +119,8 @@ typedef struct GameWorld {
 
     float gravidade;
     float tempoDeJogo;
+
+    EstadoTela estadoTela;
+    int faseAtual; // 0 = frozensuburbs, 1 = ifsp_highschool (boss fight)
 
 } GameWorld;
