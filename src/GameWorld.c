@@ -12,6 +12,7 @@
 
 #include "GameWorld.h"
 #include "Jogador.h"
+#include "EarDog.h"
 #include "Macros.h"
 #include "Mapa.h"
 #include "Obstaculo.h"
@@ -60,6 +61,7 @@ GameWorld *createGameWorld( void ) {
     GameWorld *gw = (GameWorld*) malloc( sizeof( GameWorld ) );
     gw->mapa = NULL;
     gw->jogador = NULL;
+    gw->earDog = NULL;
     gw->estadoTela = TELA_MENU;
     gw->faseAtual = 0;
     gw->gravidade = 900;
@@ -82,6 +84,7 @@ void destroyGameWorld( GameWorld *gw ) {
     if ( gw != NULL ) {
         if ( gw->mapa != NULL ) destruirMapa( gw->mapa );
         if ( gw->jogador != NULL ) destruirJogador( gw->jogador );
+        if ( gw->earDog != NULL ) destruirEarDog( gw->earDog );
         free( gw );
     }
 }
@@ -153,6 +156,9 @@ static void updateJogo( GameWorld *gw, float delta ) {
     atualizarMapa( gw->mapa, gw, delta );
     entradaJogador( j, gw, delta );
     atualizarJogador( j, gw, delta );
+    if ( gw->faseAtual == 1 && gw->earDog != NULL ) {
+        atualizarEarDog( gw->earDog, gw, delta );
+    }
     atualizarCamera( gw );
 }
 
@@ -261,7 +267,19 @@ static void drawJogo( GameWorld *gw ) {
             DrawTexture( rm.mezzanine_railing, 8300, 130, WHITE );
         }
     } else {
-        desenharJogador( gw->jogador );
+        if ( gw->earDog != NULL ) {
+            float playerFeetY = gw->jogador->ret.y + gw->jogador->ret.height;
+            float earDogFeetY = gw->earDog->ret.y + gw->earDog->ret.height;
+            if ( playerFeetY < earDogFeetY ) {
+                desenharJogador( gw->jogador );
+                desenharEarDog( gw->earDog );
+            } else {
+                desenharEarDog( gw->earDog );
+                desenharJogador( gw->jogador );
+            }
+        } else {
+            desenharJogador( gw->jogador );
+        }
     }
 
     EndMode2D();
@@ -465,6 +483,10 @@ static void inicializar( GameWorld *gw ) {
         destruirJogador( gw->jogador );
         gw->jogador = NULL;
     }
+    if ( gw->earDog != NULL ) {
+        destruirEarDog( gw->earDog );
+        gw->earDog = NULL;
+    }
 
     if ( gw->faseAtual == 0 ) {
         // Fase 1: Frozen Suburbs
@@ -492,6 +514,9 @@ static void inicializar( GameWorld *gw ) {
         float spawnX = 100.0f;
         float spawnY = alturaFase - 63.0f - 30.0f; // chão - altura do jogador
         gw->jogador = criarJogador( spawnX, spawnY, 20, 30 );
+
+        // Spawn EarDog in Phase 2, feet aligned to Y = 220.0f
+        gw->earDog = criarEarDog( 450.0f, 220.0f - 20.0f, 30, 20 );
 
         gw->camera = (Camera2D) {
             .offset = { 0 },

@@ -17,6 +17,7 @@ typedef struct ResourceManager {
     Texture2D mezzanine_railing;
     Texture2D menu;
     Texture2D frozensuburbs_blurred;
+    Texture2D earDog;
 } ResourceManager;
 
 extern ResourceManager rm;

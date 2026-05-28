@@ -108,12 +108,36 @@ typedef struct Mapa {
 } Mapa;
 
 /**
+ * @brief Representa o estado do EarDog.
+ */
+typedef enum EstadoEarDog {
+    ESTADO_EARDOG_PARADO,
+    ESTADO_EARDOG_ATACANDO,
+} EstadoEarDog;
+
+/**
+ * @brief Representa o personagem EarDog.
+ */
+typedef struct EarDog {
+    Rectangle ret;
+    Vector2 vel;
+    bool olhandoParaDireita;
+    float animTimer;
+    int animFrame;
+    float movementTimer;
+    float puloY;
+    float puloVel;
+    EstadoEarDog estado;
+} EarDog;
+
+/**
  * @brief Representa o mundo do jogo e seus elementos.
  */
 typedef struct GameWorld {
 
     Mapa *mapa;
     Jogador *jogador;
+    EarDog *earDog;
 
     Camera2D camera;
 

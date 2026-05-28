@@ -17,6 +17,7 @@ void loadResourcesResourceManager( void ) {
     rm.mezzanine_railing = LoadTexture( "resources/imagens/fundo/mezzanine_railing.png" );
     rm.menu = LoadTexture( "resources/imagens/fundo/menu.png" );
     rm.frozensuburbs_blurred = LoadTexture( "resources/imagens/fundo/frozensuburbs_blurred.png" );
+    rm.earDog = LoadTexture( "resources/imagens/EarDog.png" );
     
     // Set bilinear filter to eliminate scaling aliasing/serrilhamento
     SetTextureFilter( rm.menu, TEXTURE_FILTER_BILINEAR );
@@ -31,4 +32,5 @@ void unloadResourcesResourceManager( void ) {
     UnloadTexture( rm.mezzanine_railing );
     UnloadTexture( rm.menu );
     UnloadTexture( rm.frozensuburbs_blurred );
+    UnloadTexture( rm.earDog );
 }
