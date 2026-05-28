@@ -123,4 +123,7 @@ typedef struct GameWorld {
     EstadoTela estadoTela;
     int faseAtual; // 0 = frozensuburbs, 1 = ifsp_highschool (boss fight)
 
+    float menuBgOffset;
+    bool deveSair;
+
 } GameWorld;

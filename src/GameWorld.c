@@ -70,6 +70,8 @@ GameWorld *createGameWorld( void ) {
         .rotation = 0.0f,
         .zoom = 1.0f
     };
+    gw->menuBgOffset = 0.0f;
+    gw->deveSair = false;
     return gw;
 }
 
@@ -86,9 +88,51 @@ void destroyGameWorld( GameWorld *gw ) {
 
 // --- Update ---
 
+static Rectangle obterRetanguloBotaoMenu( int indiceBotao ) {
+    int screenW = GetScreenWidth();
+    int screenH = GetScreenHeight();
+    float scaleX = (float)screenW / 1672.0f;
+    float scaleY = (float)screenH / 941.0f;
+    
+    float bx = 598.0f * scaleX;
+    float bw = 472.0f * scaleX;
+    float bh = 71.0f * scaleY;
+    
+    float by = 0.0f;
+    switch ( indiceBotao ) {
+        case 0: by = 495.0f; break; // 1 Player
+        case 1: by = 573.0f; break; // 2 Players
+        case 2: by = 651.0f; break; // Options
+        case 3: by = 729.0f; break; // Credits
+        case 4: by = 808.0f; break; // Quit Game
+    }
+    by *= scaleY;
+    
+    return (Rectangle){ bx, by, bw, bh };
+}
+
 static void updateMenu( GameWorld *gw ) {
-    // A lógica de clique do botão é tratada no draw (para simplificar)
-    // Nada a atualizar aqui
+    gw->tempoDeJogo += GetFrameTime();
+    
+    float scale = (float)GetScreenHeight() / 283.0f;
+    float viewWidth = (float)GetScreenWidth() / scale;
+    float maxOffset = 10603.0f - viewWidth;
+    if ( maxOffset < 0 ) maxOffset = 0;
+    gw->menuBgOffset = (sinf(gw->tempoDeJogo * 0.03f) * 0.5f + 0.5f) * maxOffset;
+    
+    // Detect click on "1 Player" (Button 0)
+    Rectangle btn1Player = obterRetanguloBotaoMenu( 0 );
+    if ( mouseSobreRect( btn1Player ) && IsMouseButtonPressed( MOUSE_BUTTON_LEFT ) ) {
+        gw->faseAtual = 0;
+        inicializar( gw );
+        gw->estadoTela = TELA_JOGO;
+    }
+    
+    // Detect click on "Quit Game" (Button 4)
+    Rectangle btnQuit = obterRetanguloBotaoMenu( 4 );
+    if ( mouseSobreRect( btnQuit ) && IsMouseButtonPressed( MOUSE_BUTTON_LEFT ) ) {
+        gw->deveSair = true;
+    }
 }
 
 static void updateJogo( GameWorld *gw, float delta ) {
@@ -144,63 +188,57 @@ static void drawMenu( GameWorld *gw ) {
     int screenW = GetScreenWidth();
     int screenH = GetScreenHeight();
 
-    // Fundo com gradiente escuro
-    DrawRectangleGradientV( 0, 0, screenW, screenH,
-        (Color){ 10, 10, 30, 255 },
-        (Color){ 20, 40, 80, 255 }
-    );
+    // 1. Desenha o cenário de fundo frozen suburbs desfocado
+    // O fundo se move lentamente de acordo com gw->menuBgOffset
+    float bgScale = (float)screenH / 283.0f;
+    float viewWidth = (float)screenW / bgScale;
+    
+    Rectangle srcBg = { gw->menuBgOffset, 30.0f, viewWidth, 283.0f };
+    Rectangle destBg = { 0, 0, (float)screenW, (float)screenH };
+    Vector2 origin = { 0, 0 };
+    DrawTexturePro( rm.frozensuburbs_blurred, srcBg, destBg, origin, 0.0f, WHITE );
 
-    // Partículas decorativas (estrelas estáticas)
-    for ( int i = 0; i < 60; i++ ) {
-        int sx = ( i * 137 + 53 ) % screenW;
-        int sy = ( i * 211 + 97 ) % screenH;
-        int tamanho = ( i % 3 ) + 1;
-        unsigned char alpha = (unsigned char)( 80 + ( i * 37 ) % 176 );
-        DrawCircle( sx, sy, (float)tamanho, (Color){ 255, 255, 255, alpha } );
+    // 2. Desenha a textura do menu (menu.png) por cima do fundo
+    Rectangle srcMenu = { 0, 0, 1672.0f, 941.0f };
+    Rectangle destMenu = { 0, 0, (float)screenW, (float)screenH };
+    DrawTexturePro( rm.menu, srcMenu, destMenu, origin, 0.0f, WHITE );
+
+    // 3. Desenha os efeitos hover e seletores para os botões do menu
+    // São 5 botões: 0=1 Player, 1=2 Players, 2=Options, 3=Credits, 4=Quit Game
+    for ( int i = 0; i < 5; i++ ) {
+        Rectangle btnRect = obterRetanguloBotaoMenu( i );
+        if ( mouseSobreRect( btnRect ) ) {
+            // Efeito hover: destaque pulsante semi-transparente (azul glacial/neon)
+            int alphaFill = (int)( 35 + 15 * sinf( gw->tempoDeJogo * 6.0f ) );
+            DrawRectangleRounded( btnRect, 0.25f, 8, (Color){ 130, 200, 255, alphaFill } );
+
+            // Borda brilhante pulsante
+            int alphaBorder = (int)( 180 + 75 * sinf( gw->tempoDeJogo * 6.0f ) );
+            Color borderCor = (Color){ 130, 220, 255, alphaBorder };
+            DrawRectangleRoundedLines( btnRect, 0.25f, 8, borderCor );
+
+            // Seletores em forma de diamante nas laterais com pulsação horizontal
+            float pointerLeftX = btnRect.x - 25.0f - 5.0f * sinf( gw->tempoDeJogo * 6.0f );
+            float pointerRightX = btnRect.x + btnRect.width + 25.0f + 5.0f * sinf( gw->tempoDeJogo * 6.0f );
+            float pointerY = btnRect.y + btnRect.height / 2.0f;
+
+            // Desenha diamante esquerdo
+            Vector2 p1L = { pointerLeftX, pointerY - 8.0f };
+            Vector2 p2L = { pointerLeftX + 10.0f, pointerY };
+            Vector2 p3L = { pointerLeftX, pointerY + 8.0f };
+            Vector2 p4L = { pointerLeftX - 10.0f, pointerY };
+            DrawTriangle( p1L, p4L, p2L, borderCor );
+            DrawTriangle( p3L, p2L, p4L, (Color){ 100, 200, 255, alphaBorder } );
+
+            // Desenha diamante direito
+            Vector2 p1R = { pointerRightX, pointerY - 8.0f };
+            Vector2 p2R = { pointerRightX + 10.0f, pointerY };
+            Vector2 p3R = { pointerRightX, pointerY + 8.0f };
+            Vector2 p4R = { pointerRightX - 10.0f, pointerY };
+            DrawTriangle( p1R, p4R, p2R, borderCor );
+            DrawTriangle( p3R, p2R, p4R, (Color){ 100, 200, 255, alphaBorder } );
+        }
     }
-
-    // Título do jogo
-    const char *titulo = "ASYLUM RUSH";
-    int tituloFontSize = 72;
-    int tituloW = MeasureText( titulo, tituloFontSize );
-    int tituloX = ( screenW - tituloW ) / 2;
-    int tituloY = screenH / 4;
-
-    // Sombra do título
-    DrawText( titulo, tituloX + 3, tituloY + 3, tituloFontSize, (Color){ 0, 0, 0, 150 } );
-    // Título principal com cor vibrante
-    DrawText( titulo, tituloX, tituloY, tituloFontSize, (Color){ 100, 180, 255, 255 } );
-
-    // Subtítulo
-    const char *subtitulo = "Plataforma de Acao";
-    int subFontSize = 24;
-    int subW = MeasureText( subtitulo, subFontSize );
-    DrawText( subtitulo, ( screenW - subW ) / 2, tituloY + tituloFontSize + 10, subFontSize, (Color){ 180, 200, 230, 200 } );
-
-    // Botão JOGAR
-    float btnW = 260.0f;
-    float btnH = 64.0f;
-    Rectangle btnJogar = {
-        ( screenW - btnW ) / 2.0f,
-        screenH / 2.0f + 40.0f,
-        btnW,
-        btnH
-    };
-
-    if ( desenharBotao( btnJogar, "JOGAR", 32,
-            (Color){ 30, 100, 200, 255 },
-            (Color){ 50, 140, 255, 255 },
-            WHITE ) ) {
-        // Iniciar o jogo
-        inicializar( gw );
-        gw->estadoTela = TELA_JOGO;
-    }
-
-    // Instrução na parte inferior
-    const char *instrucao = "Pressione JOGAR para comecar!";
-    int instrFontSize = 16;
-    int instrW = MeasureText( instrucao, instrFontSize );
-    DrawText( instrucao, ( screenW - instrW ) / 2, screenH - 60, instrFontSize, (Color){ 150, 150, 180, 180 } );
 }
 
 static void drawJogo( GameWorld *gw ) {

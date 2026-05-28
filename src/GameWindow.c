@@ -106,7 +106,7 @@ void initGameWindow( GameWindow *gameWindow ) {
         gameWindow->gw = createGameWorld();
 
         // game loop
-        while ( !WindowShouldClose() ) {
+        while ( !WindowShouldClose() && ( gameWindow->gw == NULL || !gameWindow->gw->deveSair ) ) {
 
             // O delta time é limitado a 1/30s para evitar que frames muito
             // longos (ex.: lentidão na inicialização) causem deslocamentos

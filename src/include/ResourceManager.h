@@ -15,6 +15,8 @@ typedef struct ResourceManager {
     Texture2D polarbear;
     Texture2D fly_attack_polarbear;
     Texture2D mezzanine_railing;
+    Texture2D menu;
+    Texture2D frozensuburbs_blurred;
 } ResourceManager;
 
 extern ResourceManager rm;

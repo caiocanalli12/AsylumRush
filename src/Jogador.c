@@ -255,15 +255,29 @@ void atualizarJogador( Jogador *j, GameWorld *gw, float delta ) {
     j->ret.x += j->vel.x * delta;
     resolverColisaoJogadorObstaculosMapaX( j, gw->mapa );
 
+    // Clamp horizontal (eixo X) para impedir passar dos cantos esquerdo/direito da fase
+    float max_x = (float)calcularLarguraMapa( gw->mapa );
+    if ( j->ret.x < 0.0f ) {
+        j->ret.x = 0.0f;
+        j->vel.x = 0.0f;
+    } else if ( j->ret.x + j->ret.width > max_x ) {
+        j->ret.x = max_x - j->ret.width;
+        j->vel.x = 0.0f;
+    }
+
     // Eixo Y: Move verticalmente ou cai sob gravidade
     float feet_y = j->ret.y + j->ret.height;
     float cx = j->ret.x + j->ret.width / 2.0f;
-    if ( cx < 8300.0f ) {
-        j->noMezanino = ( feet_y <= 180.0f );
-    }
-
-    // Desce automaticamente do mezanino no final da passarela (monte de neve)
-    if ( j->noMezanino && cx >= 9300.0f ) {
+    
+    if ( gw->faseAtual == 0 ) {
+        if ( cx < 8300.0f ) {
+            j->noMezanino = ( feet_y <= 180.0f );
+        }
+        // Desce automaticamente do mezanino no final da passarela (monte de neve)
+        if ( j->noMezanino && cx >= 9300.0f ) {
+            j->noMezanino = false;
+        }
+    } else {
         j->noMezanino = false;
     }
 
@@ -271,29 +285,37 @@ void atualizarJogador( Jogador *j, GameWorld *gw, float delta ) {
         j->ret.y += j->vel.y * delta;
         feet_y = j->ret.y + j->ret.height;
         
-        if ( cx < 8300.0f ) {
-            // Região unificada: clamp entre o topo da rua (180) e o fundo (283)
-            if ( feet_y < 180.0f ) feet_y = 180.0f;
-            if ( feet_y > 283.0f ) feet_y = 283.0f;
-            j->ret.y = feet_y - j->ret.height;
-        } else {
-            // Região com declive e mezanino (x >= 8300.0f)
-            if ( j->noMezanino ) {
-                if ( feet_y < 140.0f ) feet_y = 140.0f;
-                if ( feet_y > 180.0f ) feet_y = 180.0f;
-                j->ret.y = feet_y - j->ret.height;
-                
-
-            } else {
-                float curb = obterCurbRua( cx );
-                if ( feet_y < curb ) {
-                    if ( j->vel.y < 0.0f ) {
-                        feet_y = curb;
-                    }
-                }
+        if ( gw->faseAtual == 0 ) {
+            // Fase 1: Frozen Suburbs (2.5D com mezanino)
+            if ( cx < 8300.0f ) {
+                // Região unificada: clamp entre o topo da rua (180) e o fundo (283)
+                if ( feet_y < 180.0f ) feet_y = 180.0f;
                 if ( feet_y > 283.0f ) feet_y = 283.0f;
                 j->ret.y = feet_y - j->ret.height;
+            } else {
+                // Região com declive e mezanino (x >= 8300.0f)
+                if ( j->noMezanino ) {
+                    if ( feet_y < 140.0f ) feet_y = 140.0f;
+                    if ( feet_y > 180.0f ) feet_y = 180.0f;
+                    j->ret.y = feet_y - j->ret.height;
+                } else {
+                    float curb = obterCurbRua( cx );
+                    if ( feet_y < curb ) {
+                        if ( j->vel.y < 0.0f ) {
+                            feet_y = curb;
+                        }
+                    }
+                    if ( feet_y > 283.0f ) feet_y = 283.0f;
+                    j->ret.y = feet_y - j->ret.height;
+                }
             }
+        } else {
+            // Fase 2: IFSP High School (arena menor, sem mezanino)
+            // Clamp dos pés entre 160.0f (fim dos armários/início do chão) e a altura real do fundo
+            float max_y = (float)rm.ifsp_highschool.height;
+            if ( feet_y < 160.0f ) feet_y = 160.0f;
+            if ( feet_y > max_y ) feet_y = max_y;
+            j->ret.y = feet_y - j->ret.height;
         }
     } else {
         // Zera o estado do pulo normal e cai no buraco
@@ -308,7 +330,7 @@ void atualizarJogador( Jogador *j, GameWorld *gw, float delta ) {
         
         // Pousar na rua/curb apenas na região do mezanino (x >= 8300)
         // Na região plana (x < 8300) o jogador cai livremente no buraco até o respawn
-        if ( cx >= 8300.0f ) {
+        if ( gw->faseAtual == 0 && cx >= 8300.0f ) {
             feet_y = j->ret.y + j->ret.height;
             float curb = obterCurbRua( cx );
             if ( feet_y >= curb ) {
