@@ -25,6 +25,7 @@ static void atualizarCamera( GameWorld *gw );
 static void inicializar( GameWorld *gw );
 static void reiniciar( GameWorld *gw );
 static void trocarFase( GameWorld *gw, int novaFase );
+static void resolverColisoesFase2( GameWorld *gw );
 
 // --- Helpers de UI ---
 
@@ -158,6 +159,7 @@ static void updateJogo( GameWorld *gw, float delta ) {
     atualizarJogador( j, gw, delta );
     if ( gw->faseAtual == 1 && gw->earDog != NULL ) {
         atualizarEarDog( gw->earDog, gw, delta );
+        resolverColisoesFase2( gw );
     }
     atualizarCamera( gw );
 }
@@ -267,19 +269,11 @@ static void drawJogo( GameWorld *gw ) {
             DrawTexture( rm.mezzanine_railing, 8300, 130, WHITE );
         }
     } else {
+        // Fase 2: sem profundidade — EarDog atras, PolarBear sempre na frente
         if ( gw->earDog != NULL ) {
-            float playerFeetY = gw->jogador->ret.y + gw->jogador->ret.height;
-            float earDogFeetY = gw->earDog->ret.y + gw->earDog->ret.height;
-            if ( playerFeetY < earDogFeetY ) {
-                desenharJogador( gw->jogador );
-                desenharEarDog( gw->earDog );
-            } else {
-                desenharEarDog( gw->earDog );
-                desenharJogador( gw->jogador );
-            }
-        } else {
-            desenharJogador( gw->jogador );
+            desenharEarDog( gw->earDog );
         }
+        desenharJogador( gw->jogador );
     }
 
     EndMode2D();
@@ -308,6 +302,54 @@ static void drawJogo( GameWorld *gw ) {
 
     // Instrução de pause
     DrawText( "P - Pausar", 16, 16, 16, (Color){ 255, 255, 255, 150 } );
+
+    // --- Mini HUD de Vidas (apenas Fase 2) ---
+    if ( gw->faseAtual == 1 && gw->jogador != NULL ) {
+        int screenW = GetScreenWidth();
+        int hudFontSize = 22;
+        int hudPad = 10;
+
+        // Fundo semi-transparente do HUD
+        Rectangle hudBg = { 0, 0, (float)screenW, 44.0f };
+        DrawRectangleRec( hudBg, (Color){ 0, 0, 0, 130 } );
+
+        // Vidas do PolarBear (esquerda)
+        char polarbearHud[64];
+        int pbVidas = gw->jogador->quantidadeVidas;
+        if ( pbVidas < 0 ) pbVidas = 0;
+        sprintf( polarbearHud, "Urso: %d", pbVidas );
+        DrawText( polarbearHud, hudPad, hudPad, hudFontSize, (Color){ 180, 220, 255, 255 } );
+
+        // Ícones de vida (corações) do PolarBear
+        for ( int i = 0; i < 3; i++ ) {
+            Color heartColor = ( i < pbVidas ) ? (Color){ 255, 80, 80, 255 } : (Color){ 80, 80, 80, 160 };
+            int hx = hudPad + MeasureText( polarbearHud, hudFontSize ) + 8 + i * 22;
+            int hy = hudPad + hudFontSize / 2 - 8;
+            DrawRectangle( hx, hy, 14, 14, heartColor );
+            DrawRectangleLines( hx, hy, 14, 14, (Color){ 255, 255, 255, 80 } );
+        }
+
+        // Vidas do EarDog (direita)
+        if ( gw->earDog != NULL ) {
+            char earDogHud[64];
+            int edVidas = gw->earDog->quantidadeVidas;
+            if ( edVidas < 0 ) edVidas = 0;
+            sprintf( earDogHud, "EarDog: %d", edVidas );
+            int edTxtW = MeasureText( earDogHud, hudFontSize );
+            int iconsW = 3 * 22;
+            int edTotalW = iconsW + 8 + edTxtW;
+            int edX = screenW - edTotalW - hudPad;
+            DrawText( earDogHud, edX, hudPad, hudFontSize, (Color){ 255, 200, 100, 255 } );
+
+            for ( int i = 0; i < 3; i++ ) {
+                Color heartColor = ( i < edVidas ) ? (Color){ 255, 80, 80, 255 } : (Color){ 80, 80, 80, 160 };
+                int hx = edX + edTxtW + 8 + i * 22;
+                int hy = hudPad + hudFontSize / 2 - 8;
+                DrawRectangle( hx, hy, 14, 14, heartColor );
+                DrawRectangleLines( hx, hy, 14, 14, (Color){ 255, 255, 255, 80 } );
+            }
+        }
+    }
 }
 
 static void drawPause( GameWorld *gw ) {
@@ -515,8 +557,10 @@ static void inicializar( GameWorld *gw ) {
         float spawnY = alturaFase - 63.0f - 30.0f; // chão - altura do jogador
         gw->jogador = criarJogador( spawnX, spawnY, 20, 30 );
 
-        // Spawn EarDog in Phase 2, feet aligned to Y = 220.0f
-        gw->earDog = criarEarDog( 450.0f, 220.0f - 20.0f, 30, 20 );
+        // Spawn EarDog na Fase 2: mesmo Y que o jogador (mesma profundidade)
+        // spawnY coloca os pes do jogador em (alturaFase - 63.0f), portanto ret.y = spawnY
+        float earDogSpawnY = spawnY; // alinhado ao jogador
+        gw->earDog = criarEarDog( 550.0f, earDogSpawnY, 30, 20 );
 
         gw->camera = (Camera2D) {
             .offset = { 0 },
@@ -532,6 +576,72 @@ static void inicializar( GameWorld *gw ) {
 
 static void reiniciar( GameWorld *gw ) {
     inicializar( gw );
+}
+
+/**
+ * @brief Calcula a hitbox da mão do urso durante o frame de soco ativo (socandoFrame == 2).
+ *        A hitbox é proporcional ao sprite (punch_frames[2] = { 192, 195, 64, 69 }).
+ *        A mão ocupa os últimos ~20px horizontais do frame (lado direito).
+ */
+static Rectangle obterHitboxSocoPolarBear( Jogador *j ) {
+    // Frame de soco ativo: punch_frames[2] = { 192, 195, 64, 69 }
+    // O sprite desenhado tem escala dependente de feet_y
+    float feet_y = j->ret.y + j->ret.height;
+    float t = ( feet_y - 220.0f ) / 103.0f;
+    float scale = 1.0f + t * 0.25f;
+
+    // Dimensões totais do frame desenhado
+    float frameW = 64.0f * scale;
+    float frameH = 69.0f * scale;
+    float drawX = ( j->ret.x + j->ret.width / 2.0f ) - frameW / 2.0f;
+    float drawY = feet_y - frameH;
+
+    // A mão/punho ocupa aproximadamente os últimos 20px originais do lado da direção
+    // Proporcional ao sprite: 20/64 da largura total
+    float handW = ( 20.0f / 64.0f ) * frameW;
+    float handH = ( 22.0f / 69.0f ) * frameH;  // altura central da mão (~22px originais)
+    float handY = drawY + ( frameH - handH ) / 2.0f;
+
+    if ( j->olhandoParaDireita ) {
+        // Mão no lado direito do frame
+        return (Rectangle){ drawX + frameW - handW, handY, handW, handH };
+    } else {
+        // Mão no lado esquerdo (imagem espelhada)
+        return (Rectangle){ drawX, handY, handW, handH };
+    }
+}
+
+/**
+ * @brief Resolve todas as colisões de combate da Fase 2:
+ *   1. Hitbox da mão do urso (socandoFrame == 2) vs hitbox do EarDog → dano no EarDog
+ *   2. Contato corpo-a-corpo sem ataque → dano no PolarBear
+ */
+static void resolverColisoesFase2( GameWorld *gw ) {
+    Jogador *j = gw->jogador;
+    EarDog *ed = gw->earDog;
+    if ( j == NULL || ed == NULL ) return;
+
+    Rectangle retJogador = j->ret;
+    Rectangle hitboxEarDog = earDogObterHitbox( ed );
+
+    bool socoAtivoFrame = ( j->socando && j->socandoFrame == 2 );
+
+    if ( socoAtivoFrame ) {
+        // --- Colisão da MÃO do urso com o EarDog ---
+        Rectangle hitboxMao = obterHitboxSocoPolarBear( j );
+        if ( CheckCollisionRecs( hitboxMao, hitboxEarDog ) ) {
+            earDogReceberDano( ed );
+        }
+    } else {
+        // --- Contato corpo-a-corpo sem ataque: o urso sofre dano ---
+        if ( CheckCollisionRecs( retJogador, hitboxEarDog ) ) {
+            if ( j->invencibilidade <= 0.0f ) {
+                j->quantidadeVidas--;
+                if ( j->quantidadeVidas < 0 ) j->quantidadeVidas = 0;
+                j->invencibilidade = 1.5f;
+            }
+        }
+    }
 }
 
 static void trocarFase( GameWorld *gw, int novaFase ) {

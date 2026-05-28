@@ -66,6 +66,8 @@ Jogador *criarJogador( float x, float y, float w, float h ) {
     novoJogador->socoAereoAterrissou = false;
     novoJogador->socoAereoCooldown = 0.0f;
 
+    novoJogador->invencibilidade = 0.0f;
+
     return novoJogador;
 
 }
@@ -164,8 +166,8 @@ void entradaJogador( Jogador *j, GameWorld *gw, float delta ) {
             }
         }
 
-        // Permite mover verticalmente na rua durante o pulo ou no chao
-        if ( j->noPulo || jogadorNoChaoCustom( j, gw->mapa ) ) {
+        // Permite mover verticalmente na rua APENAS na fase 0 (fase 1 nao tem profundidade)
+        if ( gw->faseAtual == 0 && ( j->noPulo || jogadorNoChaoCustom( j, gw->mapa ) ) ) {
             if ( cimaDown ) {
                 j->vel.y -= j->aceleracao * delta;
                 if ( j->vel.y < -j->velAndando ) {
@@ -184,6 +186,15 @@ void entradaJogador( Jogador *j, GameWorld *gw, float delta ) {
                     j->vel.y += j->desaceleracao * delta;
                     if ( j->vel.y > 0 ) j->vel.y = 0;
                 }
+            }
+        } else if ( gw->faseAtual != 0 ) {
+            // Fase 2: sem movimento em profundidade, zera vel.y
+            if ( j->vel.y > 0 ) {
+                j->vel.y -= j->desaceleracao * delta;
+                if ( j->vel.y < 0 ) j->vel.y = 0;
+            } else if ( j->vel.y < 0 ) {
+                j->vel.y += j->desaceleracao * delta;
+                if ( j->vel.y > 0 ) j->vel.y = 0;
             }
         }
 
@@ -425,6 +436,12 @@ void atualizarJogador( Jogador *j, GameWorld *gw, float delta ) {
             j->socoAereoAterrissou = false;
             j->socoAereoCooldown = 0.0f;
         }
+    }
+
+    // Reduz cooldown de invencibilidade do jogador
+    if ( j->invencibilidade > 0.0f ) {
+        j->invencibilidade -= delta;
+        if ( j->invencibilidade < 0.0f ) j->invencibilidade = 0.0f;
     }
 
 }

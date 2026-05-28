@@ -28,3 +28,13 @@ void atualizarEarDog( EarDog *ed, GameWorld *gw, float delta );
  * @brief Desenha o EarDog na tela.
  */
 void desenharEarDog( EarDog *ed );
+
+/**
+ * @brief Aplica dano ao EarDog (chamado quando a hitbox de ataque do PolarBear colide).
+ */
+void earDogReceberDano( EarDog *ed );
+
+/**
+ * @brief Retorna o retângulo de hitbox visual do EarDog proporcional ao sprite.
+ */
+Rectangle earDogObterHitbox( EarDog *ed );

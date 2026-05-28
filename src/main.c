@@ -17,7 +17,7 @@ int main( void ) {
     GameWindow *gameWindow = createGameWindow(
         1280,            // width
         720,             // height
-        "Jogo de Plataforma", // title
+        "Asylum Rush", // title
         60,              // target FPS
         false,           // antialiasing
         false,           // resizable

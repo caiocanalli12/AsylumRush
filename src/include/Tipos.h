@@ -73,6 +73,9 @@ typedef struct Jogador {
     bool socoAereoAterrissou; // true: ja pousou, exibindo frame de pouso
     float socoAereoCooldown;  // tempo de cooldown apos aterrissar (0.5s)
 
+    // Dano corpo-a-corpo
+    float invencibilidade;    // cooldown de invencibilidade apos tomar dano de contato (1.5s)
+
 } Jogador;
 
 /**
@@ -113,6 +116,7 @@ typedef struct Mapa {
 typedef enum EstadoEarDog {
     ESTADO_EARDOG_PARADO,
     ESTADO_EARDOG_ATACANDO,
+    ESTADO_EARDOG_TOMANDO_GOLPE,
 } EstadoEarDog;
 
 /**
@@ -128,6 +132,13 @@ typedef struct EarDog {
     float puloY;
     float puloVel;
     EstadoEarDog estado;
+
+    // Vidas e sistema de dano
+    int quantidadeVidas;   // 3 vidas iniciais
+    bool tomandoGolpe;     // true enquanto a anim de hit roda
+    int hitFrame;          // frame atual da anim de hit (0-2)
+    float hitTimer;        // tempo acumulado no frame atual
+    float invencibilidade; // cooldown de invencibilidade apos tomar dano (evita multi-hit)
 } EarDog;
 
 /**
