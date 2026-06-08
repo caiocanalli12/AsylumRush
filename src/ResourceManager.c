@@ -18,10 +18,13 @@ void loadResourcesResourceManager( void ) {
     rm.menu = LoadTexture( "resources/imagens/fundo/menu.png" );
     rm.frozensuburbs_blurred = LoadTexture( "resources/imagens/fundo/frozensuburbs_blurred.png" );
     rm.earDog = LoadTexture( "resources/imagens/EarDog.png" );
+    rm.wolfDummy = LoadTexture( "resources/imagens/wolf_dummy.png" );
+    rm.iceShard = LoadTexture( "resources/imagens/ice_shard.png" );
     
     // Set bilinear filter to eliminate scaling aliasing/serrilhamento
     SetTextureFilter( rm.menu, TEXTURE_FILTER_BILINEAR );
     SetTextureFilter( rm.frozensuburbs_blurred, TEXTURE_FILTER_BILINEAR );
+    SetTextureFilter( rm.wolfDummy, TEXTURE_FILTER_BILINEAR );
 }
 
 void unloadResourcesResourceManager( void ) {
@@ -33,4 +36,6 @@ void unloadResourcesResourceManager( void ) {
     UnloadTexture( rm.menu );
     UnloadTexture( rm.frozensuburbs_blurred );
     UnloadTexture( rm.earDog );
+    UnloadTexture( rm.wolfDummy );
+    UnloadTexture( rm.iceShard );
 }

@@ -18,6 +18,8 @@ typedef struct ResourceManager {
     Texture2D menu;
     Texture2D frozensuburbs_blurred;
     Texture2D earDog;
+    Texture2D wolfDummy;
+    Texture2D iceShard;
 } ResourceManager;
 
 extern ResourceManager rm;

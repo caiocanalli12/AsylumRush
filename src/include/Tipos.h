@@ -142,6 +142,100 @@ typedef struct EarDog {
 } EarDog;
 
 /**
+ * @brief Representa o estado do Wolf.
+ */
+typedef enum EstadoWolf {
+    ESTADO_WOLF_PARADO,
+    ESTADO_WOLF_ANDANDO,
+    ESTADO_WOLF_ATACANDO,
+    ESTADO_WOLF_TOMANDO_GOLPE,
+    ESTADO_WOLF_MORRENDO
+} EstadoWolf;
+
+/**
+ * @brief Representa o inimigo terrestre Wolf.
+ */
+typedef struct Wolf {
+    Rectangle ret;
+    Vector2 vel;
+    bool olhandoParaDireita;
+    float animTimer;
+    int animFrame;
+    
+    float puloY;
+    float puloVel;
+    
+    EstadoWolf estado;
+    int quantidadeVidas;
+    float invencibilidade;
+    
+    // Attack properties
+    float attackCooldown;
+    bool hasHitPlayer; 
+    
+    // Hit/Death properties
+    float hitTimer;
+    int hitFrame;
+    bool ativo; 
+} Wolf;
+
+/**
+ * @brief Representa o estado do Ice Shard.
+ */
+typedef enum EstadoIceShard {
+    ESTADO_ICESHARD_FLUTUANDO,
+    ESTADO_ICESHARD_ABRINDO,
+    ESTADO_ICESHARD_ATACANDO,
+    ESTADO_ICESHARD_MORRENDO
+} EstadoIceShard;
+
+/**
+ * @brief Representa o inimigo aéreo Ice Shard.
+ */
+typedef struct IceShard {
+    Rectangle ret;
+    float base_x;
+    float base_y;
+    float floatTimer;
+    float moveTimer;
+    float targetX;
+    float targetY;
+    
+    EstadoIceShard estado;
+    int quantidadeVidas;
+    float invencibilidade;
+    
+    float animTimer;
+    int animFrame;
+    
+    // Attack properties
+    float attackTimer; 
+    int shotsFired;    
+    float shotCooldown; 
+    
+    // Smooth Aim
+    float currentAimAngle;
+    
+    bool ativo;
+} IceShard;
+
+/**
+ * @brief Representa um projétil atirado.
+ */
+typedef struct Projetil {
+    Vector2 pos;
+    Vector2 vel;
+    bool ativo;
+    float lifeTimer;
+    float animTimer;
+    int animFrame;
+} Projetil;
+
+#define MAX_WOLVES 10
+#define MAX_ICE_SHARDS 10
+#define MAX_PROJETEIS 50
+
+/**
  * @brief Representa o mundo do jogo e seus elementos.
  */
 typedef struct GameWorld {
@@ -149,6 +243,14 @@ typedef struct GameWorld {
     Mapa *mapa;
     Jogador *jogador;
     EarDog *earDog;
+
+    Wolf *wolves[MAX_WOLVES];
+    int numWolves;
+
+    IceShard *iceShards[MAX_ICE_SHARDS];
+    int numIceShards;
+
+    Projetil projeteis[MAX_PROJETEIS];
 
     Camera2D camera;
 

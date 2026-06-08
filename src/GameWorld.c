@@ -12,6 +12,8 @@
 
 #include "GameWorld.h"
 #include "Jogador.h"
+#include "Wolf.h"
+#include "IceShard.h"
 #include "EarDog.h"
 #include "Macros.h"
 #include "Mapa.h"
@@ -26,6 +28,8 @@ static void inicializar( GameWorld *gw );
 static void reiniciar( GameWorld *gw );
 static void trocarFase( GameWorld *gw, int novaFase );
 static void resolverColisoesFase2( GameWorld *gw );
+static Rectangle obterHitboxSocoPolarBear( Jogador *j );
+static Rectangle obterHitboxVisualJogador( Jogador *j );
 
 // --- Helpers de UI ---
 
@@ -63,6 +67,11 @@ GameWorld *createGameWorld( void ) {
     gw->mapa = NULL;
     gw->jogador = NULL;
     gw->earDog = NULL;
+    gw->numWolves = 0;
+    gw->numIceShards = 0;
+    for ( int i = 0; i < MAX_WOLVES; i++ ) gw->wolves[i] = NULL;
+    for ( int i = 0; i < MAX_ICE_SHARDS; i++ ) gw->iceShards[i] = NULL;
+    for ( int i = 0; i < MAX_PROJETEIS; i++ ) gw->projeteis[i].ativo = false;
     gw->estadoTela = TELA_MENU;
     gw->faseAtual = 0;
     gw->gravidade = 900;
@@ -83,9 +92,14 @@ GameWorld *createGameWorld( void ) {
  */
 void destroyGameWorld( GameWorld *gw ) {
     if ( gw != NULL ) {
-        if ( gw->mapa != NULL ) destruirMapa( gw->mapa );
-        if ( gw->jogador != NULL ) destruirJogador( gw->jogador );
-        if ( gw->earDog != NULL ) destruirEarDog( gw->earDog );
+        if ( gw->mapa != NULL ) { destruirMapa( gw->mapa ); gw->mapa = NULL; }
+        if ( gw->jogador != NULL ) { destruirJogador( gw->jogador ); gw->jogador = NULL; }
+        if ( gw->earDog != NULL ) { destruirEarDog( gw->earDog ); gw->earDog = NULL; }
+        for ( int i = 0; i < gw->numWolves; i++ ) { if ( gw->wolves[i] != NULL ) destruirWolf( gw->wolves[i] ); gw->wolves[i] = NULL; }
+        gw->numWolves = 0;
+        for ( int i = 0; i < gw->numIceShards; i++ ) { if ( gw->iceShards[i] != NULL ) destruirIceShard( gw->iceShards[i] ); gw->iceShards[i] = NULL; }
+        gw->numIceShards = 0;
+        for ( int i = 0; i < MAX_PROJETEIS; i++ ) gw->projeteis[i].ativo = false;
         free( gw );
     }
 }
@@ -157,6 +171,106 @@ static void updateJogo( GameWorld *gw, float delta ) {
     atualizarMapa( gw->mapa, gw, delta );
     entradaJogador( j, gw, delta );
     atualizarJogador( j, gw, delta );
+    
+    // Atualiza inimigos fase 1
+    if ( gw->faseAtual == 0 ) {
+        for ( int i = 0; i < gw->numWolves; i++ ) {
+            atualizarWolf( gw->wolves[i], gw, delta );
+        }
+        for ( int i = 0; i < gw->numIceShards; i++ ) {
+            atualizarIceShard( gw->iceShards[i], gw, delta );
+        }
+        for ( int i = 0; i < MAX_PROJETEIS; i++ ) {
+            if ( gw->projeteis[i].ativo ) {
+                gw->projeteis[i].pos.x += gw->projeteis[i].vel.x * delta;
+                gw->projeteis[i].pos.y += gw->projeteis[i].vel.y * delta;
+                gw->projeteis[i].lifeTimer += delta;
+                gw->projeteis[i].animTimer += delta * 12.0f;
+                gw->projeteis[i].animFrame = ((int)gw->projeteis[i].animTimer) % 6;
+                if ( gw->projeteis[i].lifeTimer >= 2.0f ) {
+                    gw->projeteis[i].ativo = false;
+                }
+            }
+        }
+        // Resolucao de colisões fase 1
+        // Wolf ataques e hit no jogador
+        for ( int i = 0; i < gw->numWolves; i++ ) {
+            Wolf *w = gw->wolves[i];
+            if ( w != NULL && w->ativo && w->estado != ESTADO_WOLF_MORRENDO ) {
+                // Soco do jogador acerta Wolf
+                bool jogadorSocandoFrameDano = ( j->socando && j->socandoFrame == 2 ) || 
+                                               ( j->socoAereo && !j->socoAereoAterrissou );
+                if ( jogadorSocandoFrameDano ) {
+                    Rectangle hitboxMao = obterHitboxSocoPolarBear( j );
+                    Rectangle corpoWolf = wolfObterHitboxCorpo( w );
+                    if ( CheckCollisionRecs( hitboxMao, corpoWolf ) ) {
+                        wolfReceberDano( w );
+                    }
+                }
+                // Wolf ataca jogador (apenas dano de ataque)
+                if ( w->estado == ESTADO_WOLF_ATACANDO && !w->hasHitPlayer ) {
+                    Rectangle ataqueWolf = wolfObterHitboxAtaque( w );
+                    Rectangle visualJ = obterHitboxVisualJogador( j );
+                    
+                    // Colisão visual 2D
+                    if ( CheckCollisionRecs( ataqueWolf, visualJ ) ) {
+                        // Verificação de profundidade 2.5D (z-axis)
+                        float depthW = w->ret.y + w->ret.height;
+                        float depthJ = j->ret.y + j->ret.height;
+                        if ( fabsf(depthW - depthJ) < 60.0f ) {
+                            if ( j->invencibilidade <= 0.0f ) {
+                                j->quantidadeVidas--;
+                                j->invencibilidade = 1.5f;
+                                w->hasHitPlayer = true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        // Soco (normal ou aéreo) do jogador acerta Ice Shard
+        for ( int i = 0; i < gw->numIceShards; i++ ) {
+            IceShard *is = gw->iceShards[i];
+            if ( is != NULL && is->ativo && is->estado != ESTADO_ICESHARD_MORRENDO ) {
+                bool socoDano = ( j->socando && j->socandoFrame == 2 ) || 
+                                ( j->socoAereo && !j->socoAereoAterrissou );
+                if ( socoDano ) {
+                    Rectangle hitboxMao = obterHitboxSocoPolarBear( j );
+                    // Hitbox do Ice Shard
+                    float isW = is->ret.width * 0.8f;
+                    float isH = is->ret.height * 0.8f;
+                    float isX = is->ret.x + (is->ret.width - isW) / 2.0f;
+                    float isY = is->ret.y + (is->ret.height - isH) / 2.0f;
+                    Rectangle hitboxIS = { isX, isY, isW, isH };
+                    if ( CheckCollisionRecs( hitboxMao, hitboxIS ) ) {
+                        iceShardReceberDano( is, j->ret.x );
+                    }
+                }
+            }
+        }
+        // Projéteis acertam jogador
+        for ( int i = 0; i < MAX_PROJETEIS; i++ ) {
+            if ( gw->projeteis[i].ativo ) {
+                Rectangle projRet = { gw->projeteis[i].pos.x - 10, gw->projeteis[i].pos.y - 10, 20, 20 };
+                if ( CheckCollisionRecs( projRet, j->ret ) ) {
+                    gw->projeteis[i].ativo = false;
+                    if ( j->invencibilidade <= 0.0f ) {
+                        j->quantidadeVidas--;
+                        j->invencibilidade = 1.5f;
+                    }
+                }
+            }
+        }
+        
+        // --- Gerenciador de Vidas (Life Manager) - Apenas Fase 1 ---
+        if ( j->quantidadeVidas <= 0 ) {
+            // Reset direto da fase sem tela de Game Over
+            inicializar( gw );
+            return; // Interrompe o update atual, pois tudo foi recriado
+        }
+
+    }
+    
     if ( gw->faseAtual == 1 && gw->earDog != NULL ) {
         atualizarEarDog( gw->earDog, gw, delta );
         resolverColisoesFase2( gw );
@@ -264,6 +378,31 @@ static void drawJogo( GameWorld *gw ) {
         if ( !noMezanino ) {
             DrawTexture( rm.mezzanine_railing, 8300, 130, WHITE );
         }
+        
+        // Ice Shards flutuam atrás do mezanino e cenário
+        for ( int i = 0; i < gw->numIceShards; i++ ) {
+            desenharIceShard( gw->iceShards[i] );
+        }
+        
+        // Projéteis de gelo
+        static const Rectangle proj_frames[6] = {
+            { 170, 108, 12, 22 }, { 192, 108, 16, 22 }, { 221, 108, 22, 22 },
+            { 256, 108, 16, 22 }, { 282, 108, 12, 22 }, { 306, 108, 12, 22 }
+        };
+        for ( int i = 0; i < MAX_PROJETEIS; i++ ) {
+            if ( gw->projeteis[i].ativo ) {
+                Rectangle src = proj_frames[gw->projeteis[i].animFrame % 6];
+                float scale = 0.8f; // Projéteis reduzidos de 1.5 para 0.8
+                Rectangle dest = { gw->projeteis[i].pos.x, gw->projeteis[i].pos.y, src.width*scale, src.height*scale };
+                DrawTexturePro( rm.iceShard, src, dest, (Vector2){ src.width*scale/2, src.height*scale/2 }, 0, WHITE );
+            }
+        }
+        
+        // Wolves
+        for ( int i = 0; i < gw->numWolves; i++ ) {
+            desenharWolf( gw->wolves[i] );
+        }
+
         desenharJogador( gw->jogador );
         if ( noMezanino ) {
             DrawTexture( rm.mezzanine_railing, 8300, 130, WHITE );
@@ -279,6 +418,21 @@ static void drawJogo( GameWorld *gw ) {
     EndMode2D();
 
     // --- UI sobreposta (coordenadas de tela) ---
+
+    // Canvas de HUD (Apenas na Fase 1 - Frozen Suburbs)
+    if ( gw->faseAtual == 0 ) {
+        // Desenha Ícone do Urso (Rosto)
+        Texture2D iconTex = rm.polarbear;
+        Rectangle iconSrc = { 216, 396, 23, 20 }; // ln4col4 face frame
+        Rectangle iconDest = { 20, 20, 23 * 3.0f, 20 * 3.0f }; // Scale by 3x for UI
+        DrawTexturePro( iconTex, iconSrc, iconDest, (Vector2){0,0}, 0.0f, WHITE );
+        
+        // Texto dinâmico de Vidas
+        char livesTxt[16];
+        sprintf( livesTxt, "X %d", gw->jogador->quantidadeVidas );
+        DrawText( livesTxt, 110, 35, 30, BLACK ); // Sombra
+        DrawText( livesTxt, 108, 33, 30, WHITE ); // Texto principal
+    }
 
     // Botão de alternar fase (canto superior direito)
     char faseTxt[32];
@@ -544,6 +698,30 @@ static void inicializar( GameWorld *gw ) {
             .rotation = 0.0f,
             .zoom = GetScreenHeight() / 283.0f
         };
+        
+        // Spawn Wolves espalhados (Aumentada a densidade)
+        gw->wolves[0] = criarWolf( 800.0f, 150.0f, 30, 20 );
+        gw->wolves[1] = criarWolf( 1500.0f, 150.0f, 30, 20 );
+        gw->wolves[2] = criarWolf( 2300.0f, 150.0f, 30, 20 );
+        gw->wolves[3] = criarWolf( 3200.0f, 150.0f, 30, 20 );
+        gw->wolves[4] = criarWolf( 4100.0f, 150.0f, 30, 20 );
+        gw->wolves[5] = criarWolf( 5000.0f, 150.0f, 30, 20 );
+        gw->wolves[6] = criarWolf( 6100.0f, 150.0f, 30, 20 );
+        gw->wolves[7] = criarWolf( 7200.0f, 150.0f, 30, 20 );
+        gw->wolves[8] = criarWolf( 8100.0f, 150.0f, 30, 20 );
+        gw->numWolves = 9;
+        
+        // Spawn Ice Shards (Aumentada a densidade, e altura reduzida para serem alcançados)
+        gw->iceShards[0] = criarIceShard( 1100.0f, 130.0f );
+        gw->iceShards[1] = criarIceShard( 1900.0f, 130.0f );
+        gw->iceShards[2] = criarIceShard( 2800.0f, 130.0f );
+        gw->iceShards[3] = criarIceShard( 3700.0f, 130.0f );
+        gw->iceShards[4] = criarIceShard( 4600.0f, 130.0f );
+        gw->iceShards[5] = criarIceShard( 5600.0f, 130.0f );
+        gw->iceShards[6] = criarIceShard( 6700.0f, 130.0f );
+        gw->iceShards[7] = criarIceShard( 7700.0f, 130.0f );
+        gw->numIceShards = 8;
+        
     } else {
         // Fase 2: IFSP High School (Boss Fight) - mapa menor
         gw->mapa = carregarMapa( "resources/mapas/mapa_modelo.txt" );
@@ -590,25 +768,53 @@ static Rectangle obterHitboxSocoPolarBear( Jogador *j ) {
     float t = ( feet_y - 220.0f ) / 103.0f;
     float scale = 1.0f + t * 0.25f;
 
-    // Dimensões totais do frame desenhado
-    float frameW = 64.0f * scale;
-    float frameH = 69.0f * scale;
-    float drawX = ( j->ret.x + j->ret.width / 2.0f ) - frameW / 2.0f;
-    float drawY = feet_y - frameH;
+    if ( j->socoAereo || j->socoAereoAterrissou ) {
+        // --- HITBOX DO SOCO AÉREO ---
+        // O soco aéreo agora é uma hitbox de corpo inteiro expandida.
+        // Basicamente tudo que encostar no urso na ascendente e descendente toma dano.
+        Rectangle hitbox = j->ret;
+        
+        // Expande levemente para facilitar acertar alvos menores ou em planos diferentes
+        hitbox.x -= 15.0f;
+        hitbox.width += 30.0f;
+        hitbox.y -= 10.0f;
+        hitbox.height += 20.0f;
+        
+        return hitbox;
 
-    // A mão/punho ocupa aproximadamente os últimos 20px originais do lado da direção
-    // Proporcional ao sprite: 20/64 da largura total
-    float handW = ( 20.0f / 64.0f ) * frameW;
-    float handH = ( 22.0f / 69.0f ) * frameH;  // altura central da mão (~22px originais)
-    float handY = drawY + ( frameH - handH ) / 2.0f;
-
-    if ( j->olhandoParaDireita ) {
-        // Mão no lado direito do frame
-        return (Rectangle){ drawX + frameW - handW, handY, handW, handH };
     } else {
-        // Mão no lado esquerdo (imagem espelhada)
-        return (Rectangle){ drawX, handY, handW, handH };
+        // --- HITBOX DO SOCO TERRESTRE (Normal) ---
+        float frameW = 64.0f * scale;
+        float frameH = 69.0f * scale;
+        float drawX = ( j->ret.x + j->ret.width / 2.0f ) - frameW / 2.0f;
+        float drawY = feet_y - frameH;
+
+        float handW = ( 20.0f / 64.0f ) * frameW;
+        float handH = ( 22.0f / 69.0f ) * frameH;
+        float handY = drawY + ( 35.0f / 69.0f ) * frameH;
+
+        if ( j->olhandoParaDireita ) {
+            return (Rectangle){ drawX + frameW - handW, handY, handW, handH };
+        } else {
+            return (Rectangle){ drawX, handY, handW, handH };
+        }
     }
+}
+
+/**
+ * @brief Obtém a hitbox visual do corpo do jogador para receber dano 2.5D
+ */
+static Rectangle obterHitboxVisualJogador( Jogador *j ) {
+    float feet_y = j->ret.y + j->ret.height;
+    float t = ( feet_y - 220.0f ) / 103.0f;
+    float scale = 1.0f + t * 0.25f;
+    
+    float w = 60.0f * scale; 
+    float h = 65.0f * scale; 
+    float drawX = ( j->ret.x + j->ret.width / 2.0f ) - w / 2.0f;
+    float drawY = ( feet_y + j->puloY * scale ) - h;
+    
+    return (Rectangle){ drawX, drawY, w, h };
 }
 
 /**
