@@ -108,6 +108,29 @@ void iceShardReceberDano( IceShard *is, float playerX ) {
     }
 }
 
+static Jogador *obterAlvoProximoIceShard( IceShard *is, GameWorld *gw ) {
+    Jogador *j = gw->jogador;
+    Belial *b = gw->belial;
+    bool jValido = ( j != NULL && j->ativo );
+    bool bValido = ( gw->modo2Jogadores && b != NULL && b->ativo );
+
+    if ( jValido && bValido ) {
+        float cxIS = is->ret.x + is->ret.width / 2.0f;
+        float cxJ = j->ret.x + j->ret.width / 2.0f;
+        float cxB = b->ret.x + b->ret.width / 2.0f;
+        if ( fabsf( cxJ - cxIS ) < fabsf( cxB - cxIS ) ) {
+            return j;
+        } else {
+            return (Jogador*) b;
+        }
+    } else if ( jValido ) {
+        return j;
+    } else if ( bValido ) {
+        return (Jogador*) b;
+    }
+    return NULL;
+}
+
 void atualizarIceShard( IceShard *is, GameWorld *gw, float delta ) {
     if ( is == NULL || !is->ativo ) return;
 
@@ -147,8 +170,14 @@ void atualizarIceShard( IceShard *is, GameWorld *gw, float delta ) {
     float bobOffset = sinf(is->floatTimer) * 10.0f;
     is->ret.y += bobOffset * delta; // Pequeno incremento visual
 
-    Jogador *j = gw->jogador;
-    if ( j == NULL ) return;
+    Jogador *j = obterAlvoProximoIceShard( is, gw );
+    if ( j == NULL ) {
+        if ( is->estado != ESTADO_ICESHARD_MORRENDO ) {
+            is->estado = ESTADO_ICESHARD_FLUTUANDO;
+            is->attackTimer = 0.0f;
+        }
+        return;
+    }
 
     float cxIS = is->ret.x + is->ret.width / 2.0f;
     float cxJ = j->ret.x + j->ret.width / 2.0f;
@@ -234,6 +263,14 @@ void desenharIceShard( IceShard *is ) {
     Rectangle dest = { drawX, drawY, drawW, drawH };
     Vector2 origin = { 0, 0 };
 
+    // Determine tint color (fade out during death)
+    Color tint = WHITE;
+    if (is->estado == ESTADO_ICESHARD_MORRENDO) {
+        // Fade out over 3 frames
+        unsigned char alpha = (unsigned char)(255 - is->animFrame * 85);
+        tint.a = alpha;
+    }
+
     bool isHitFlash = false;
     if ( is->invencibilidade > 0.0f ) {
         int phase = (int)( is->invencibilidade / 0.15f ) % 2;
@@ -246,8 +283,8 @@ void desenharIceShard( IceShard *is ) {
     DrawTexturePro( tex, src, (Rectangle){ dest.x, dest.y - 2, dest.width, dest.height }, origin, 0.0f, BLACK );
     DrawTexturePro( tex, src, (Rectangle){ dest.x, dest.y + 2, dest.width, dest.height }, origin, 0.0f, BLACK );
 
-    // Draw main sprite
-    DrawTexturePro( tex, src, dest, origin, 0.0f, WHITE );
+    // Draw main sprite with tint (handles fade)
+    DrawTexturePro( tex, src, dest, origin, 0.0f, tint );
     
     // Efeito de blur/brilho branco quando toma dano
     if ( isHitFlash ) {

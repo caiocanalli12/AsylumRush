@@ -76,7 +76,64 @@ typedef struct Jogador {
     // Dano corpo-a-corpo
     float invencibilidade;    // cooldown de invencibilidade apos tomar dano de contato (1.5s)
 
+    // Sistema de knocked-out / respawn
+    bool ativo;           // false = jogador fora de jogo (esperando respawn ou morto)
+    float respawnTimer;   // >0: contagem regressiva de respawn em segundos
+
 } Jogador;
+
+/**
+ * @brief Representa o segundo jogador (Belial) controlado pelo usuário.
+ */
+typedef struct Belial {
+
+    Rectangle ret;
+    Vector2 vel;
+    Color cor;
+
+    float velAndando;
+    float velPulo;
+    float velMaxQueda;
+
+    float aceleracao;
+    float desaceleracao;
+
+    int quantidadePulos;
+    int quantidadeMaxPulos;
+
+    int quantidadeVidas;
+    int score;
+
+    EstadoJogador estado;
+    bool olhandoParaDireita;
+
+    float animTimer;
+    int animFrame;
+
+    float puloY;
+    float puloVel;
+    bool noPulo;
+    bool noMezanino;
+
+    // Soco simples (chao) / Bater a tromba
+    bool socando;          // true enquanto a animacao de soco esta ativa
+    int socandoFrame;      // frame atual da sequencia (0-3)
+    float socandoTimer;    // tempo acumulado no frame atual
+    float socandoCooldown; // tempo restante de cooldown no frame final
+
+    // Soco aereo (no ar) / Tromba aerea
+    bool socoAereo;           // true: soco aereo ativo (Ç pressionado no ar)
+    bool socoAereoAterrissou; // true: ja pousou, exibindo frame de pouso
+    float socoAereoCooldown;  // tempo de cooldown apos aterrissar (0.5s)
+
+    // Dano corpo-a-corpo
+    float invencibilidade;    // cooldown de invencibilidade apos tomar dano de contato (1.5s)
+
+    // Sistema de knocked-out / respawn
+    bool ativo;           // false = belial fora de jogo (esperando respawn ou morto)
+    float respawnTimer;   // >0: contagem regressiva de respawn em segundos
+
+} Belial;
 
 /**
  * @brief Representa um obstáculo estático do mapa.
@@ -242,6 +299,7 @@ typedef struct GameWorld {
 
     Mapa *mapa;
     Jogador *jogador;
+    Belial *belial;
     EarDog *earDog;
 
     Wolf *wolves[MAX_WOLVES];
@@ -261,6 +319,7 @@ typedef struct GameWorld {
     int faseAtual; // 0 = frozensuburbs, 1 = ifsp_highschool (boss fight)
 
     float menuBgOffset;
+    bool modo2Jogadores;
     bool deveSair;
 
 } GameWorld;

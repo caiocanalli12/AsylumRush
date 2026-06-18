@@ -20,6 +20,7 @@ void loadResourcesResourceManager( void ) {
     rm.earDog = LoadTexture( "resources/imagens/EarDog.png" );
     rm.wolfDummy = LoadTexture( "resources/imagens/wolf_dummy.png" );
     rm.iceShard = LoadTexture( "resources/imagens/ice_shard.png" );
+    rm.belial = LoadTexture( "resources/imagens/belial.png" );
     
     // Set bilinear filter to eliminate scaling aliasing/serrilhamento
     SetTextureFilter( rm.menu, TEXTURE_FILTER_BILINEAR );
@@ -38,4 +39,5 @@ void unloadResourcesResourceManager( void ) {
     UnloadTexture( rm.earDog );
     UnloadTexture( rm.wolfDummy );
     UnloadTexture( rm.iceShard );
+    UnloadTexture( rm.belial );
 }

@@ -74,6 +74,29 @@ void destruirWolf( Wolf *w ) {
     }
 }
 
+static Jogador *obterAlvoProximo( Wolf *w, GameWorld *gw ) {
+    Jogador *j = gw->jogador;
+    Belial *b = gw->belial;
+    bool jValido = ( j != NULL && j->ativo );
+    bool bValido = ( gw->modo2Jogadores && b != NULL && b->ativo );
+
+    if ( jValido && bValido ) {
+        float cxW = w->ret.x + w->ret.width / 2.0f;
+        float cxJ = j->ret.x + j->ret.width / 2.0f;
+        float cxB = b->ret.x + b->ret.width / 2.0f;
+        if ( fabsf( cxJ - cxW ) < fabsf( cxB - cxW ) ) {
+            return j;
+        } else {
+            return (Jogador*) b;
+        }
+    } else if ( jValido ) {
+        return j;
+    } else if ( bValido ) {
+        return (Jogador*) b;
+    }
+    return NULL;
+}
+
 void atualizarWolf( Wolf *w, GameWorld *gw, float delta ) {
     if ( w == NULL || !w->ativo ) return;
 
@@ -171,7 +194,7 @@ void atualizarWolf( Wolf *w, GameWorld *gw, float delta ) {
     }
 
     // AI logic: Target Player
-    Jogador *j = gw->jogador;
+    Jogador *j = obterAlvoProximo( w, gw );
     if ( j != NULL && w->estado != ESTADO_WOLF_ATACANDO ) {
         float cxW = w->ret.x + w->ret.width / 2.0f;
         float cyW = w->ret.y + w->ret.height; // Depth do lobo
@@ -263,6 +286,10 @@ void atualizarWolf( Wolf *w, GameWorld *gw, float delta ) {
                 w->olhandoParaDireita = ( cxJ > cxW );
             }
         }
+    } else if ( w->estado != ESTADO_WOLF_ATACANDO ) {
+        w->estado = ESTADO_WOLF_PARADO;
+        w->vel.x = Lerp(w->vel.x, 0.0f, delta * 5.0f);
+        w->vel.y = Lerp(w->vel.y, 0.0f, delta * 5.0f);
     }
 
     if ( w->estado == ESTADO_WOLF_ATACANDO ) {

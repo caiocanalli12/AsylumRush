@@ -15,6 +15,7 @@
 #include "Wolf.h"
 #include "IceShard.h"
 #include "EarDog.h"
+#include "Belial.h"
 #include "Macros.h"
 #include "Mapa.h"
 #include "Obstaculo.h"
@@ -75,6 +76,8 @@ GameWorld *createGameWorld( void ) {
     gw->estadoTela = TELA_MENU;
     gw->faseAtual = 0;
     gw->gravidade = 900;
+    gw->modo2Jogadores = false;
+    gw->belial = NULL;
     gw->tempoDeJogo = 0.0f;
     gw->camera = (Camera2D) {
         .offset = { 0 },
@@ -94,6 +97,7 @@ void destroyGameWorld( GameWorld *gw ) {
     if ( gw != NULL ) {
         if ( gw->mapa != NULL ) { destruirMapa( gw->mapa ); gw->mapa = NULL; }
         if ( gw->jogador != NULL ) { destruirJogador( gw->jogador ); gw->jogador = NULL; }
+        if ( gw->belial != NULL ) { destruirBelial( gw->belial ); gw->belial = NULL; }
         if ( gw->earDog != NULL ) { destruirEarDog( gw->earDog ); gw->earDog = NULL; }
         for ( int i = 0; i < gw->numWolves; i++ ) { if ( gw->wolves[i] != NULL ) destruirWolf( gw->wolves[i] ); gw->wolves[i] = NULL; }
         gw->numWolves = 0;
@@ -141,6 +145,16 @@ static void updateMenu( GameWorld *gw ) {
     // Detect click on "1 Player" (Button 0)
     Rectangle btn1Player = obterRetanguloBotaoMenu( 0 );
     if ( mouseSobreRect( btn1Player ) && IsMouseButtonPressed( MOUSE_BUTTON_LEFT ) ) {
+        gw->modo2Jogadores = false;
+        gw->faseAtual = 0;
+        inicializar( gw );
+        gw->estadoTela = TELA_JOGO;
+    }
+    
+    // Detect click on "2 Players" (Button 1)
+    Rectangle btn2Players = obterRetanguloBotaoMenu( 1 );
+    if ( mouseSobreRect( btn2Players ) && IsMouseButtonPressed( MOUSE_BUTTON_LEFT ) ) {
+        gw->modo2Jogadores = true;
         gw->faseAtual = 0;
         inicializar( gw );
         gw->estadoTela = TELA_JOGO;
@@ -167,10 +181,15 @@ static void updateJogo( GameWorld *gw, float delta ) {
     }
 
     Jogador *j = gw->jogador;
+    Belial *b = gw->belial;
     gw->tempoDeJogo += delta;
     atualizarMapa( gw->mapa, gw, delta );
     entradaJogador( j, gw, delta );
     atualizarJogador( j, gw, delta );
+    if ( gw->modo2Jogadores && b != NULL ) {
+        entradaBelial( b, gw, delta );
+        atualizarBelial( b, gw, delta );
+    }
     
     // Atualiza inimigos fase 1
     if ( gw->faseAtual == 0 ) {
@@ -193,35 +212,78 @@ static void updateJogo( GameWorld *gw, float delta ) {
             }
         }
         // Resolucao de colisões fase 1
-        // Wolf ataques e hit no jogador
+        // Wolf ataques e hit no jogador (PolarBear)
         for ( int i = 0; i < gw->numWolves; i++ ) {
             Wolf *w = gw->wolves[i];
             if ( w != NULL && w->ativo && w->estado != ESTADO_WOLF_MORRENDO ) {
-                // Soco do jogador acerta Wolf
-                bool jogadorSocandoFrameDano = ( j->socando && j->socandoFrame == 2 ) || 
+                // PolarBear hit
+                bool jogadorSocandoFrameDano = ( j->socando && j->socandoFrame == 2 ) ||
                                                ( j->socoAereo && !j->socoAereoAterrissou );
-                if ( jogadorSocandoFrameDano ) {
+                if ( jogadorSocandoFrameDano && j->ativo ) {
                     Rectangle hitboxMao = obterHitboxSocoPolarBear( j );
                     Rectangle corpoWolf = wolfObterHitboxCorpo( w );
                     if ( CheckCollisionRecs( hitboxMao, corpoWolf ) ) {
                         wolfReceberDano( w );
                     }
                 }
+                // Belial hit
+                if ( gw->modo2Jogadores && b != NULL && b->ativo ) {
+                    bool belialSocandoFrameDano = ( b->socando && b->socandoFrame == 2 ) ||
+                                                  ( b->socoAereo && !b->socoAereoAterrissou );
+                    if ( belialSocandoFrameDano ) {
+                        Rectangle hitboxMaoB = obterHitboxSocoPolarBear( (Jogador*)b );
+                        Rectangle corpoWolf = wolfObterHitboxCorpo( w );
+                        if ( CheckCollisionRecs( hitboxMaoB, corpoWolf ) ) {
+                            wolfReceberDano( w );
+                        }
+                    }
+                }
                 // Wolf ataca jogador (apenas dano de ataque)
                 if ( w->estado == ESTADO_WOLF_ATACANDO && !w->hasHitPlayer ) {
                     Rectangle ataqueWolf = wolfObterHitboxAtaque( w );
-                    Rectangle visualJ = obterHitboxVisualJogador( j );
-                    
-                    // Colisão visual 2D
-                    if ( CheckCollisionRecs( ataqueWolf, visualJ ) ) {
-                        // Verificação de profundidade 2.5D (z-axis)
-                        float depthW = w->ret.y + w->ret.height;
-                        float depthJ = j->ret.y + j->ret.height;
-                        if ( fabsf(depthW - depthJ) < 60.0f ) {
-                            if ( j->invencibilidade <= 0.0f ) {
-                                j->quantidadeVidas--;
-                                j->invencibilidade = 1.5f;
-                                w->hasHitPlayer = true;
+                    // Collision with PolarBear
+                    if ( j->ativo ) {
+                        Rectangle visualJ = obterHitboxVisualJogador( j );
+                        if ( CheckCollisionRecs( ataqueWolf, visualJ ) ) {
+                            float depthW = w->ret.y + w->ret.height;
+                            float depthJ = j->ret.y + j->ret.height;
+                            if ( fabsf(depthW - depthJ) < 60.0f ) {
+                                if ( j->invencibilidade <= 0.0f ) {
+                                    j->quantidadeVidas--;
+                                    if ( j->quantidadeVidas <= 0 ) {
+                                        j->quantidadeVidas = 0;
+                                        j->ativo = false;
+                                        j->respawnTimer = 0.0f;
+                                        j->ret.x = -999.0f; j->ret.y = -999.0f;
+                                        j->vel = (Vector2){0,0};
+                                    } else {
+                                        j->invencibilidade = 2.0f;
+                                    }
+                                    w->hasHitPlayer = true;
+                                }
+                            }
+                        }
+                    }
+                    // Collision with Belial if present
+                    if ( gw->modo2Jogadores && b != NULL && b->ativo ) {
+                        Rectangle visualB = obterHitboxVisualJogador( (Jogador*)b );
+                        if ( CheckCollisionRecs( ataqueWolf, visualB ) ) {
+                            float depthW = w->ret.y + w->ret.height;
+                            float depthB = b->ret.y + b->ret.height;
+                            if ( fabsf(depthW - depthB) < 60.0f ) {
+                                if ( b->invencibilidade <= 0.0f ) {
+                                    b->quantidadeVidas--;
+                                    if ( b->quantidadeVidas <= 0 ) {
+                                        b->quantidadeVidas = 0;
+                                        b->ativo = false;
+                                        b->respawnTimer = 0.0f;
+                                        b->ret.x = -999.0f; b->ret.y = -999.0f;
+                                        b->vel = (Vector2){0,0};
+                                    } else {
+                                        b->invencibilidade = 2.0f;
+                                    }
+                                    w->hasHitPlayer = true;
+                                }
                             }
                         }
                     }
@@ -232,43 +294,138 @@ static void updateJogo( GameWorld *gw, float delta ) {
         for ( int i = 0; i < gw->numIceShards; i++ ) {
             IceShard *is = gw->iceShards[i];
             if ( is != NULL && is->ativo && is->estado != ESTADO_ICESHARD_MORRENDO ) {
+                float isW = is->ret.width * 0.8f;
+                float isH = is->ret.height * 0.8f;
+                float isX = is->ret.x + (is->ret.width - isW) / 2.0f;
+                float isY = is->ret.y + (is->ret.height - isH) / 2.0f;
+                Rectangle hitboxIS = { isX, isY, isW, isH };
+
+                // PolarBear hit
                 bool socoDano = ( j->socando && j->socandoFrame == 2 ) || 
                                 ( j->socoAereo && !j->socoAereoAterrissou );
-                if ( socoDano ) {
+                if ( socoDano && j->ativo ) {
                     Rectangle hitboxMao = obterHitboxSocoPolarBear( j );
-                    // Hitbox do Ice Shard
-                    float isW = is->ret.width * 0.8f;
-                    float isH = is->ret.height * 0.8f;
-                    float isX = is->ret.x + (is->ret.width - isW) / 2.0f;
-                    float isY = is->ret.y + (is->ret.height - isH) / 2.0f;
-                    Rectangle hitboxIS = { isX, isY, isW, isH };
                     if ( CheckCollisionRecs( hitboxMao, hitboxIS ) ) {
                         iceShardReceberDano( is, j->ret.x );
                     }
                 }
-            }
-        }
-        // Projéteis acertam jogador
-        for ( int i = 0; i < MAX_PROJETEIS; i++ ) {
-            if ( gw->projeteis[i].ativo ) {
-                Rectangle projRet = { gw->projeteis[i].pos.x - 10, gw->projeteis[i].pos.y - 10, 20, 20 };
-                if ( CheckCollisionRecs( projRet, j->ret ) ) {
-                    gw->projeteis[i].ativo = false;
-                    if ( j->invencibilidade <= 0.0f ) {
-                        j->quantidadeVidas--;
-                        j->invencibilidade = 1.5f;
+
+                // Belial hit
+                if ( gw->modo2Jogadores && b != NULL && b->ativo ) {
+                    bool socoDanoB = ( b->socando && b->socandoFrame == 2 ) || 
+                                     ( b->socoAereo && !b->socoAereoAterrissou );
+                    if ( socoDanoB ) {
+                        Rectangle hitboxMaoB = obterHitboxSocoPolarBear( (Jogador*)b );
+                        if ( CheckCollisionRecs( hitboxMaoB, hitboxIS ) ) {
+                            iceShardReceberDano( is, b->ret.x );
+                        }
                     }
                 }
             }
         }
-        
-        // --- Gerenciador de Vidas (Life Manager) - Apenas Fase 1 ---
-        if ( j->quantidadeVidas <= 0 ) {
-            // Reset direto da fase sem tela de Game Over
-            inicializar( gw );
-            return; // Interrompe o update atual, pois tudo foi recriado
+        // Projéteis acertam jogador ou Belial
+        for ( int i = 0; i < MAX_PROJETEIS; i++ ) {
+            if ( gw->projeteis[i].ativo ) {
+                Rectangle projRet = { gw->projeteis[i].pos.x - 10, gw->projeteis[i].pos.y - 10, 20, 20 };
+                if ( j->ativo && CheckCollisionRecs( projRet, j->ret ) ) {
+                    gw->projeteis[i].ativo = false;
+                    if ( j->invencibilidade <= 0.0f ) {
+                        j->quantidadeVidas--;
+                        if ( j->quantidadeVidas <= 0 ) {
+                            j->quantidadeVidas = 0;
+                            j->ativo = false;
+                            j->respawnTimer = 0.0f;
+                            j->ret.x = -999.0f; j->ret.y = -999.0f;
+                            j->vel = (Vector2){0,0};
+                        } else {
+                            j->invencibilidade = 2.0f;
+                        }
+                    }
+                } else if ( b != NULL && b->ativo && CheckCollisionRecs( projRet, b->ret ) ) {
+                    gw->projeteis[i].ativo = false;
+                    if ( b->invencibilidade <= 0.0f ) {
+                        b->quantidadeVidas--;
+                        if ( b->quantidadeVidas <= 0 ) {
+                            b->quantidadeVidas = 0;
+                            b->ativo = false;
+                            b->respawnTimer = 0.0f;
+                            b->ret.x = -999.0f; b->ret.y = -999.0f;
+                            b->vel = (Vector2){0,0};
+                        } else {
+                            b->invencibilidade = 2.0f;
+                        }
+                    }
+                }
+            }
         }
 
+    }
+
+    // --- Gerenciador de Respawn (ambas as fases) ---
+    {
+        Jogador *j2 = gw->jogador;
+        Belial  *b2 = gw->belial;
+
+        // Respawn do PolarBear
+        if ( j2 != NULL && !j2->ativo && j2->respawnTimer > 0.0f ) {
+            j2->respawnTimer -= delta;
+            if ( j2->respawnTimer <= 0.0f ) {
+                j2->respawnTimer = 0.0f;
+                if ( j2->quantidadeVidas > 0 ) {
+                    // Reaparecer próximo ao Belial (se vivo) ou posição padrão
+                    float spawnX = 150.0f;
+                    float spawnY = ( gw->faseAtual == 0 ) ? 220.0f - j2->ret.height
+                                  : (float)rm.ifsp_highschool.height - 63.0f - j2->ret.height;
+                    if ( b2 != NULL && b2->ativo ) {
+                        spawnX = b2->ret.x - 40.0f;
+                        spawnY = b2->ret.y;
+                    }
+                    j2->ret.x = spawnX;
+                    j2->ret.y = spawnY;
+                    j2->vel = (Vector2){0,0};
+                    j2->noPulo = false;
+                    j2->puloY = 0.0f;
+                    j2->estado = ESTADO_JOGADOR_PARADO;
+                    j2->invencibilidade = 2.0f; // breve invencibilidade ao respawnar
+                    j2->ativo = true;
+                }
+                // Se vidas <= 0, permanece inativo (morto definitivo)
+            }
+        }
+
+        // Respawn do Belial
+        if ( b2 != NULL && !b2->ativo && b2->respawnTimer > 0.0f ) {
+            b2->respawnTimer -= delta;
+            if ( b2->respawnTimer <= 0.0f ) {
+                b2->respawnTimer = 0.0f;
+                if ( b2->quantidadeVidas > 0 ) {
+                    float spawnX = 180.0f;
+                    float spawnY = ( gw->faseAtual == 0 ) ? 220.0f - b2->ret.height
+                                  : (float)rm.ifsp_highschool.height - 63.0f - b2->ret.height;
+                    if ( j2 != NULL && j2->ativo ) {
+                        spawnX = j2->ret.x + 40.0f;
+                        spawnY = j2->ret.y;
+                    }
+                    b2->ret.x = spawnX;
+                    b2->ret.y = spawnY;
+                    b2->vel = (Vector2){0,0};
+                    b2->noPulo = false;
+                    b2->puloY = 0.0f;
+                    b2->estado = ESTADO_JOGADOR_PARADO;
+                    b2->invencibilidade = 2.0f;
+                    b2->ativo = true;
+                }
+            }
+        }
+
+        // --- Game Over Colaborativo ---
+        // Só reinicia quando AMBOS os jogadores estão mortos definitivamente
+        bool jMortoDefinitivo = ( j2 == NULL ) || ( !j2->ativo && j2->respawnTimer <= 0.0f && j2->quantidadeVidas <= 0 );
+        bool bMortoDefinitivo = !gw->modo2Jogadores || ( b2 == NULL ) || ( !b2->ativo && b2->respawnTimer <= 0.0f && b2->quantidadeVidas <= 0 );
+        if ( jMortoDefinitivo && bMortoDefinitivo ) {
+            inicializar( gw );
+            return;
+        }
     }
     
     if ( gw->faseAtual == 1 && gw->earDog != NULL ) {
@@ -276,6 +433,32 @@ static void updateJogo( GameWorld *gw, float delta ) {
         resolverColisoesFase2( gw );
     }
     atualizarCamera( gw );
+
+    // --- Limitador de Tela Dinâmico (Camera Clamping) ---
+    // Impede que qualquer jogador saia dos limites visíveis da câmera
+    {
+        float halfW  = ( GetScreenWidth()  / gw->camera.zoom ) / 2.0f;
+        float halfH  = ( GetScreenHeight() / gw->camera.zoom ) / 2.0f;
+        float leftB  = gw->camera.target.x - halfW;
+        float rightB = gw->camera.target.x + halfW;
+        float topB   = gw->camera.target.y - halfH;
+        float botB   = gw->camera.target.y + halfH;
+
+        Jogador *jc = gw->jogador;
+        if ( jc != NULL && jc->ativo ) {
+            if ( jc->ret.x < leftB ) { jc->ret.x = leftB; jc->vel.x = 0; }
+            if ( jc->ret.x + jc->ret.width > rightB ) { jc->ret.x = rightB - jc->ret.width; jc->vel.x = 0; }
+            if ( jc->ret.y < topB ) { jc->ret.y = topB; jc->vel.y = 0; }
+            if ( jc->ret.y + jc->ret.height > botB ) { jc->ret.y = botB - jc->ret.height; jc->vel.y = 0; }
+        }
+        Belial *bc = gw->belial;
+        if ( bc != NULL && bc->ativo ) {
+            if ( bc->ret.x < leftB ) { bc->ret.x = leftB; bc->vel.x = 0; }
+            if ( bc->ret.x + bc->ret.width > rightB ) { bc->ret.x = rightB - bc->ret.width; bc->vel.x = 0; }
+            if ( bc->ret.y < topB ) { bc->ret.y = topB; bc->vel.y = 0; }
+            if ( bc->ret.y + bc->ret.height > botB ) { bc->ret.y = botB - bc->ret.height; bc->vel.y = 0; }
+        }
+    }
 }
 
 static void updatePause( GameWorld *gw ) {
@@ -404,6 +587,10 @@ static void drawJogo( GameWorld *gw ) {
         }
 
         desenharJogador( gw->jogador );
+        if ( gw->belial != NULL ) {
+            desenharBelial( gw->belial );
+        }
+
         if ( noMezanino ) {
             DrawTexture( rm.mezzanine_railing, 8300, 130, WHITE );
         }
@@ -413,6 +600,9 @@ static void drawJogo( GameWorld *gw ) {
             desenharEarDog( gw->earDog );
         }
         desenharJogador( gw->jogador );
+        if ( gw->belial != NULL ) {
+            desenharBelial( gw->belial );
+        }
     }
 
     EndMode2D();
@@ -421,17 +611,57 @@ static void drawJogo( GameWorld *gw ) {
 
     // Canvas de HUD (Apenas na Fase 1 - Frozen Suburbs)
     if ( gw->faseAtual == 0 ) {
-        // Desenha Ícone do Urso (Rosto)
+        // --- HUD PolarBear (canto superior esquerdo) ---
         Texture2D iconTex = rm.polarbear;
-        Rectangle iconSrc = { 216, 396, 23, 20 }; // ln4col4 face frame
-        Rectangle iconDest = { 20, 20, 23 * 3.0f, 20 * 3.0f }; // Scale by 3x for UI
+        Rectangle iconSrc  = { 216, 396, 23, 20 };
+        Rectangle iconDest = { 20, 20, 23 * 3.0f, 20 * 3.0f };
         DrawTexturePro( iconTex, iconSrc, iconDest, (Vector2){0,0}, 0.0f, WHITE );
-        
-        // Texto dinâmico de Vidas
+
         char livesTxt[16];
-        sprintf( livesTxt, "X %d", gw->jogador->quantidadeVidas );
-        DrawText( livesTxt, 110, 35, 30, BLACK ); // Sombra
-        DrawText( livesTxt, 108, 33, 30, WHITE ); // Texto principal
+        int pbVidas = ( gw->jogador->quantidadeVidas > 0 ) ? gw->jogador->quantidadeVidas : 0;
+        sprintf( livesTxt, "X %d", pbVidas );
+        DrawText( livesTxt, 110, 35, 30, BLACK );
+        DrawText( livesTxt, 108, 33, 30, WHITE );
+
+        // Timer de respawn do PolarBear (abaixo do ícone)
+        if ( !gw->jogador->ativo && gw->jogador->respawnTimer > 0.0f ) {
+            char timerTxt[32];
+            sprintf( timerTxt, "Respawn: %d s", (int)ceilf( gw->jogador->respawnTimer ) );
+            DrawText( timerTxt, 18, 90, 20, BLACK );
+            DrawText( timerTxt, 16, 88, 20, (Color){ 255, 220, 60, 255 } );
+        }
+
+        // --- HUD Belial (canto superior direito) ---
+        if ( gw->modo2Jogadores && gw->belial != NULL ) {
+            int screenW = GetScreenWidth();
+            // Ícone do Belial: frame parado (walk_frames[0] = {1,47,49,43})
+            Texture2D belialTex = rm.belial;
+            Rectangle bIconSrc  = { 1, 47, 49, 43 };
+            float bIconScale = 2.5f;
+            float bIconW = 49 * bIconScale;
+            float bIconH = 43 * bIconScale;
+            float bIconX = (float)screenW - bIconW - 20.0f;
+            float bIconY = 12.0f;
+            Rectangle bIconDest = { bIconX, bIconY, bIconW, bIconH };
+            DrawTexturePro( belialTex, bIconSrc, bIconDest, (Vector2){0,0}, 0.0f, WHITE );
+
+            // Texto de vidas
+            int bVidas = ( gw->belial->quantidadeVidas > 0 ) ? gw->belial->quantidadeVidas : 0;
+            char bLivesTxt[16];
+            sprintf( bLivesTxt, "%d X", bVidas );
+            int bTxtW = MeasureText( bLivesTxt, 30 );
+            DrawText( bLivesTxt, (int)bIconX - bTxtW - 4, 35, 30, BLACK );
+            DrawText( bLivesTxt, (int)bIconX - bTxtW - 6, 33, 30, (Color){ 255, 180, 80, 255 } );
+
+            // Timer de respawn do Belial (abaixo do ícone)
+            if ( !gw->belial->ativo && gw->belial->respawnTimer > 0.0f ) {
+                char bTimerTxt[32];
+                sprintf( bTimerTxt, "Respawn: %d s", (int)ceilf( gw->belial->respawnTimer ) );
+                int bTimW = MeasureText( bTimerTxt, 20 );
+                DrawText( bTimerTxt, screenW - bTimW - 18, 90, 20, BLACK );
+                DrawText( bTimerTxt, screenW - bTimW - 20, 88, 20, (Color){ 255, 220, 60, 255 } );
+            }
+        }
     }
 
     // Botão de alternar fase (canto superior direito)
@@ -618,7 +848,17 @@ static void desenharFundo( GameWorld *gw ) {
 static void atualizarCamera( GameWorld *gw ) {
 
     Jogador *j = gw->jogador;
+    Belial *b = gw->belial;
     Camera2D *c = &gw->camera;
+
+    float targetCamX = 0.0f;
+    if ( j != NULL && j->ativo ) {
+        targetCamX = j->ret.x + j->ret.width / 2.0f;
+    } else if ( gw->modo2Jogadores && b != NULL && b->ativo ) {
+        targetCamX = b->ret.x + b->ret.width / 2.0f;
+    } else if ( j != NULL ) {
+        targetCamX = j->ret.x + j->ret.width / 2.0f;
+    }
 
     if ( gw->faseAtual == 0 ) {
         // Fase 1: Zoom dinâmico para 283px de altura
@@ -627,7 +867,7 @@ static void atualizarCamera( GameWorld *gw ) {
         c->offset.x = GetScreenWidth() / 2.0f;
         c->offset.y = GetScreenHeight() / 2.0f;
 
-        c->target.x = roundf( j->ret.x + j->ret.width / 2.0f );
+        c->target.x = roundf( targetCamX );
         c->target.y = 283.0f / 2.0f;
 
         int minX = (int)( (GetScreenWidth() / c->zoom) / 2 );
@@ -646,7 +886,7 @@ static void atualizarCamera( GameWorld *gw ) {
         c->offset.x = GetScreenWidth() / 2.0f;
         c->offset.y = GetScreenHeight() / 2.0f;
 
-        c->target.x = roundf( j->ret.x + j->ret.width / 2.0f );
+        c->target.x = roundf( targetCamX );
         c->target.y = alturaFase / 2.0f;
 
         float larguraFase = (float)rm.ifsp_highschool.width;
@@ -679,6 +919,10 @@ static void inicializar( GameWorld *gw ) {
         destruirJogador( gw->jogador );
         gw->jogador = NULL;
     }
+    if ( gw->belial != NULL ) {
+        destruirBelial( gw->belial );
+        gw->belial = NULL;
+    }
     if ( gw->earDog != NULL ) {
         destruirEarDog( gw->earDog );
         gw->earDog = NULL;
@@ -691,6 +935,9 @@ static void inicializar( GameWorld *gw ) {
         float spawnX = 150.0f;
         float spawnY = 220.0f - 30.0f;
         gw->jogador = criarJogador( spawnX, spawnY, 20, 30 );
+        if ( gw->modo2Jogadores ) {
+            gw->belial = criarBelial( spawnX - 40.0f, spawnY, 20, 30 );
+        }
 
         gw->camera = (Camera2D) {
             .offset = { 0 },
@@ -734,6 +981,9 @@ static void inicializar( GameWorld *gw ) {
         float spawnX = 100.0f;
         float spawnY = alturaFase - 63.0f - 30.0f; // chão - altura do jogador
         gw->jogador = criarJogador( spawnX, spawnY, 20, 30 );
+        if ( gw->modo2Jogadores ) {
+            gw->belial = criarBelial( spawnX - 40.0f, spawnY, 20, 30 );
+        }
 
         // Spawn EarDog na Fase 2: mesmo Y que o jogador (mesma profundidade)
         // spawnY coloca os pes do jogador em (alturaFase - 63.0f), portanto ret.y = spawnY
@@ -824,27 +1074,62 @@ static Rectangle obterHitboxVisualJogador( Jogador *j ) {
  */
 static void resolverColisoesFase2( GameWorld *gw ) {
     Jogador *j = gw->jogador;
+    Belial *b = gw->belial;
     EarDog *ed = gw->earDog;
-    if ( j == NULL || ed == NULL ) return;
+    if ( ed == NULL ) return;
 
-    Rectangle retJogador = j->ret;
     Rectangle hitboxEarDog = earDogObterHitbox( ed );
 
-    bool socoAtivoFrame = ( j->socando && j->socandoFrame == 2 );
-
-    if ( socoAtivoFrame ) {
-        // --- Colisão da MÃO do urso com o EarDog ---
-        Rectangle hitboxMao = obterHitboxSocoPolarBear( j );
-        if ( CheckCollisionRecs( hitboxMao, hitboxEarDog ) ) {
-            earDogReceberDano( ed );
+    // PolarBear interactions
+    if ( j != NULL && j->ativo ) {
+        bool socoAtivoFrame = ( j->socando && j->socandoFrame == 2 ) || 
+                              ( j->socoAereo && !j->socoAereoAterrissou );
+        if ( socoAtivoFrame ) {
+            Rectangle hitboxMao = obterHitboxSocoPolarBear( j );
+            if ( CheckCollisionRecs( hitboxMao, hitboxEarDog ) ) {
+                earDogReceberDano( ed );
+            }
+        } else {
+            if ( CheckCollisionRecs( j->ret, hitboxEarDog ) ) {
+                if ( j->invencibilidade <= 0.0f ) {
+                    j->quantidadeVidas--;
+                    if ( j->quantidadeVidas <= 0 ) {
+                        j->quantidadeVidas = 0;
+                        j->ativo = false;
+                        j->respawnTimer = 0.0f;
+                        j->ret.x = -999.0f; j->ret.y = -999.0f;
+                        j->vel = (Vector2){0,0};
+                    } else {
+                        j->invencibilidade = 1.5f;
+                    }
+                }
+            }
         }
-    } else {
-        // --- Contato corpo-a-corpo sem ataque: o urso sofre dano ---
-        if ( CheckCollisionRecs( retJogador, hitboxEarDog ) ) {
-            if ( j->invencibilidade <= 0.0f ) {
-                j->quantidadeVidas--;
-                if ( j->quantidadeVidas < 0 ) j->quantidadeVidas = 0;
-                j->invencibilidade = 1.5f;
+    }
+
+    // Belial interactions
+    if ( gw->modo2Jogadores && b != NULL && b->ativo ) {
+        bool socoAtivoFrameB = ( b->socando && b->socandoFrame == 2 ) ||
+                               ( b->socoAereo && !b->socoAereoAterrissou );
+        if ( socoAtivoFrameB ) {
+            Rectangle hitboxMaoB = obterHitboxSocoPolarBear( (Jogador*)b );
+            if ( CheckCollisionRecs( hitboxMaoB, hitboxEarDog ) ) {
+                earDogReceberDano( ed );
+            }
+        } else {
+            if ( CheckCollisionRecs( b->ret, hitboxEarDog ) ) {
+                if ( b->invencibilidade <= 0.0f ) {
+                    b->quantidadeVidas--;
+                    if ( b->quantidadeVidas <= 0 ) {
+                        b->quantidadeVidas = 0;
+                        b->ativo = false;
+                        b->respawnTimer = 0.0f;
+                        b->ret.x = -999.0f; b->ret.y = -999.0f;
+                        b->vel = (Vector2){0,0};
+                    } else {
+                        b->invencibilidade = 1.5f;
+                    }
+                }
             }
         }
     }

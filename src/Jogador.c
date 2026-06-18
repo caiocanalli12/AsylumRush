@@ -68,6 +68,10 @@ Jogador *criarJogador( float x, float y, float w, float h ) {
 
     novoJogador->invencibilidade = 0.0f;
 
+    // Sistema de knocked-out / respawn
+    novoJogador->ativo = true;
+    novoJogador->respawnTimer = 0.0f;
+
     return novoJogador;
 
 }
@@ -132,10 +136,12 @@ static bool jogadorNoChaoCustom( Jogador *j, Mapa *mapa ) {
 
 void entradaJogador( Jogador *j, GameWorld *gw, float delta ) {
 
-    bool direitaDown  = IsKeyDown( KEY_RIGHT ) || IsKeyDown( KEY_D );
-    bool esquerdaDown = IsKeyDown( KEY_LEFT )  || IsKeyDown( KEY_A );
-    bool cimaDown     = IsKeyDown( KEY_UP )    || IsKeyDown( KEY_W );
-    bool baixoDown    = IsKeyDown( KEY_DOWN )  || IsKeyDown( KEY_S );
+    if ( !j->ativo ) return; // Jogador fora de jogo, ignora entrada
+
+    bool direitaDown  = IsKeyDown( KEY_D );
+    bool esquerdaDown = IsKeyDown( KEY_A );
+    bool cimaDown     = IsKeyDown( KEY_W );
+    bool baixoDown    = IsKeyDown( KEY_S );
     bool espacoPressed = IsKeyPressed( KEY_SPACE );
 
     // Durante o cooldown do soco (frame 3) ou cooldown do soco aereo, o jogador nao pode se mover nem pular
@@ -262,6 +268,8 @@ void entradaJogador( Jogador *j, GameWorld *gw, float delta ) {
  */
 void atualizarJogador( Jogador *j, GameWorld *gw, float delta ) {
 
+    if ( !j->ativo ) return; // Jogador fora de jogo, ignora fisica
+
     // Eixo X: Move horizontalmente e resolve colisões do mapa
     j->ret.x += j->vel.x * delta;
     resolverColisaoJogadorObstaculosMapaX( j, gw->mapa );
@@ -363,14 +371,20 @@ void atualizarJogador( Jogador *j, GameWorld *gw, float delta ) {
         }
     }
 
-    // Se o jogador cair do mapa, perde uma vida e respawna
+    // Se o jogador cair do mapa, inicia o estado knocked-out (respawn em 15 s)
     float limiteQueda = calcularAlturaMapa( gw->mapa );
     if ( j->ret.y > limiteQueda ) {
         j->quantidadeVidas--;
-        
-        // Respawnar jogador na posição inicial
-        j->ret.x = 150.0f;
-        j->ret.y = 220.0f - j->ret.height;
+        j->ativo = false;
+        if ( j->quantidadeVidas <= 0 ) {
+            j->quantidadeVidas = 0;
+            j->respawnTimer = 0.0f;
+        } else {
+            j->respawnTimer = 15.0f;
+        }
+        // Reposiciona fora da tela para não aparecer enquanto espera
+        j->ret.x = -999.0f;
+        j->ret.y = -999.0f;
         j->vel = (Vector2){ 0, 0 };
         j->quantidadePulos = 0;
         j->noPulo = false;
