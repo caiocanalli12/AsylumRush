@@ -38,3 +38,8 @@ void earDogReceberDano( EarDog *ed );
  * @brief Retorna o retângulo de hitbox visual do EarDog proporcional ao sprite.
  */
 Rectangle earDogObterHitbox( EarDog *ed );
+
+/**
+ * @brief Retorna a hitbox do ataque do EarDog.
+ */
+Rectangle earDogObterHitboxAtaque( EarDog *ed );

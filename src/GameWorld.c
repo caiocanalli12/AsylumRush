@@ -25,6 +25,7 @@
 static void desenharFundo( GameWorld *gw );
 static void atualizarCamera( GameWorld *gw );
 static void inicializar( GameWorld *gw );
+void ResetBossScene( GameWorld *gw );
 static void reiniciar( GameWorld *gw );
 static void trocarFase( GameWorld *gw, int novaFase );
 static void resolverColisoesFase2( GameWorld *gw );
@@ -205,6 +206,10 @@ static void updateJogo( GameWorld *gw, float delta ) {
                     Rectangle corpoWolf = wolfObterHitboxCorpo( w );
                     if ( CheckCollisionRecs( hitboxMao, corpoWolf ) ) {
                         wolfReceberDano( w );
+                        if ( w->estado == ESTADO_WOLF_MORRENDO ) {
+                            j->quantidadeVidas += 0.5f;
+                            if ( j->quantidadeVidas > j->maxVidas ) j->quantidadeVidas = j->maxVidas;
+                        }
                     }
                 }
                 // Wolf ataca jogador (apenas dano de ataque)
@@ -219,13 +224,17 @@ static void updateJogo( GameWorld *gw, float delta ) {
                         float depthJ = j->ret.y + j->ret.height;
                         if ( fabsf(depthW - depthJ) < 60.0f ) {
                             if ( j->invencibilidade <= 0.0f ) {
-                                j->quantidadeVidas--;
+                                j->quantidadeVidas -= 0.5f;
                                 j->invencibilidade = 1.5f;
                                 w->hasHitPlayer = true;
                             }
                         }
                     }
                 }
+            } else if ( w != NULL && !w->ativo ) {
+                // Minion terminou a animacao de morte -> destruir e liberar memoria
+                destruirWolf( w );
+                gw->wolves[i] = NULL;
             }
         }
         // Soco (normal ou aéreo) do jogador acerta Ice Shard
@@ -244,6 +253,10 @@ static void updateJogo( GameWorld *gw, float delta ) {
                     Rectangle hitboxIS = { isX, isY, isW, isH };
                     if ( CheckCollisionRecs( hitboxMao, hitboxIS ) ) {
                         iceShardReceberDano( is, j->ret.x );
+                        if ( is->estado == ESTADO_ICESHARD_MORRENDO ) {
+                            j->quantidadeVidas += 0.5f;
+                            if ( j->quantidadeVidas > j->maxVidas ) j->quantidadeVidas = j->maxVidas;
+                        }
                     }
                 }
             }
@@ -255,7 +268,7 @@ static void updateJogo( GameWorld *gw, float delta ) {
                 if ( CheckCollisionRecs( projRet, j->ret ) ) {
                     gw->projeteis[i].ativo = false;
                     if ( j->invencibilidade <= 0.0f ) {
-                        j->quantidadeVidas--;
+                        j->quantidadeVidas -= 0.5f;
                         j->invencibilidade = 1.5f;
                     }
                 }
@@ -274,6 +287,86 @@ static void updateJogo( GameWorld *gw, float delta ) {
     if ( gw->faseAtual == 1 && gw->earDog != NULL ) {
         atualizarEarDog( gw->earDog, gw, delta );
         resolverColisoesFase2( gw );
+        
+        // Spawn de Minions (lobos de 1 HP) quando EarDog late
+        if ( gw->earDog->summonPendente && gw->earDog->estado != ESTADO_EARDOG_MORRENDO ) {
+            gw->earDog->summonPendente = false;
+            
+            // Encontra 1 slot livre para o lobo minion
+            float mapW = (float)gw->mapa->colunas;
+            float spawnY = gw->jogador->ret.y + gw->jogador->ret.height / 2.0f - 10.0f;
+            float spawnPosition = 20.0f; // Pode spawnar na esquerda ou onde for melhor
+            
+            for ( int i = 0; i < MAX_WOLVES; i++ ) {
+                if ( gw->wolves[i] == NULL || !gw->wolves[i]->ativo ) {
+                    if ( gw->wolves[i] != NULL ) {
+                        destruirWolf( gw->wolves[i] );
+                    }
+                    gw->wolves[i] = criarWolf( spawnPosition, spawnY, 15, 10 );
+                    gw->wolves[i]->quantidadeVidas = 1; // 1 soco = morreu
+                    if ( gw->numWolves <= i ) gw->numWolves = i + 1;
+                    break; // Spawna exatamente 1 minion
+                }
+            }
+        }
+        
+        // Colisoes Minions na fase 2 (lobos convocados)
+        Jogador *j2 = gw->jogador;
+        for ( int i = 0; i < gw->numWolves; i++ ) {
+            Wolf *w = gw->wolves[i];
+            if ( w != NULL ) {
+                atualizarWolf( w, gw, delta );
+            }
+            if ( w != NULL && w->ativo && w->estado != ESTADO_WOLF_MORRENDO ) {
+                bool socoDano = ( j2->socando && j2->socandoFrame == 2 ) ||
+                                ( j2->socoAereo && !j2->socoAereoAterrissou );
+                if ( socoDano ) {
+                    Rectangle hitboxMao = obterHitboxSocoPolarBear( j2 );
+                    Rectangle corpoW    = wolfObterHitboxCorpo( w );
+                    if ( CheckCollisionRecs( hitboxMao, corpoW ) ) {
+                        wolfReceberDano( w );
+                        if ( w->estado == ESTADO_WOLF_MORRENDO ) {
+                            j2->quantidadeVidas += 0.5f;
+                            if ( j2->quantidadeVidas > j2->maxVidas ) j2->quantidadeVidas = j2->maxVidas;
+                        }
+                    }
+                }
+                if ( w->estado == ESTADO_WOLF_ATACANDO && !w->hasHitPlayer ) {
+                    Rectangle ataqueW = wolfObterHitboxAtaque( w );
+                    Rectangle visualJ = obterHitboxVisualJogador( j2 );
+                    if ( CheckCollisionRecs( ataqueW, visualJ ) ) {
+                        float depthW = w->ret.y + w->ret.height;
+                        float depthJ = j2->ret.y + j2->ret.height;
+                        if ( fabsf(depthW - depthJ) < 60.0f ) {
+                            if ( j2->invencibilidade <= 0.0f ) {
+                                j2->quantidadeVidas -= 0.5f;
+                                j2->invencibilidade = 1.5f;
+                                w->hasHitPlayer = true;
+                            }
+                        }
+                    }
+                }
+            } else if ( w != NULL && !w->ativo ) {
+                // Destroi o minion morto para sumir da tela e limpar array
+                destruirWolf( w );
+                gw->wolves[i] = NULL;
+            }
+        }
+        
+        // Vida do jogador zerada na Fase 2 → reinicia a fase
+        if ( j->quantidadeVidas <= 0 ) {
+            ResetBossScene( gw );
+            return;
+        }
+        
+        // EarDog derrotado → O jogo continua para o boss ficar caído morto
+        if ( gw->earDog != NULL &&
+             gw->earDog->quantidadeVidas <= 0 &&
+             gw->earDog->estado == ESTADO_EARDOG_MORRENDO &&
+             gw->earDog->animFrame >= 3 ) {
+            // A fase não deve reiniciar, ele deve ficar caído morto lá.
+            // Spawns já estão inibidos.
+        }
     }
     atualizarCamera( gw );
 }
@@ -408,101 +501,157 @@ static void drawJogo( GameWorld *gw ) {
             DrawTexture( rm.mezzanine_railing, 8300, 130, WHITE );
         }
     } else {
-        // Fase 2: sem profundidade — EarDog atras, PolarBear sempre na frente
+        // Fase 2: EarDog e minions atras, PolarBear sempre na frente
         if ( gw->earDog != NULL ) {
             desenharEarDog( gw->earDog );
+        }
+        // Minions (lobos convocados) também desenhados aqui dentro do BeginMode2D
+        for ( int i = 0; i < gw->numWolves; i++ ) {
+            if ( gw->wolves[i] != NULL ) desenharWolf( gw->wolves[i] );
         }
         desenharJogador( gw->jogador );
     }
 
+    // ════════════════════════════════════════════
+    // UI SOBREPOSTA — HUD PERSONALIZADO
+    // ════════════════════════════════════════════
     EndMode2D();
 
-    // --- UI sobreposta (coordenadas de tela) ---
+    int screenW = GetScreenWidth();
+    int screenH = GetScreenHeight();
 
-    // Canvas de HUD (Apenas na Fase 1 - Frozen Suburbs)
-    if ( gw->faseAtual == 0 ) {
-        // Desenha Ícone do Urso (Rosto)
+
+    // ─── HUD Vidas do Jogador (todas as fases) ───
+    if ( gw->jogador != NULL ) {
+        float pbVidas = gw->jogador->quantidadeVidas;
+        if ( pbVidas < 0.0f ) pbVidas = 0.0f;
+
+        // Painel de fundo da HUD
+        Rectangle hudPanel = { 8, 8, 160, 52 };
+        DrawRectangleRounded( hudPanel, 0.25f, 6, (Color){ 0, 0, 0, 160 } );
+        DrawRectangleRoundedLines( hudPanel, 0.25f, 6, (Color){ 200, 200, 220, 80 } );
+
+        // Ícone do Urso (rosto)
         Texture2D iconTex = rm.polarbear;
-        Rectangle iconSrc = { 216, 396, 23, 20 }; // ln4col4 face frame
-        Rectangle iconDest = { 20, 20, 23 * 3.0f, 20 * 3.0f }; // Scale by 3x for UI
+        Rectangle iconSrc  = { 216, 396, 23, 20 };
+        Rectangle iconDest = { 14.0f, 14.0f, 23 * 2.0f, 20 * 2.0f };
         DrawTexturePro( iconTex, iconSrc, iconDest, (Vector2){0,0}, 0.0f, WHITE );
-        
-        // Texto dinâmico de Vidas
-        char livesTxt[16];
-        sprintf( livesTxt, "X %d", gw->jogador->quantidadeVidas );
-        DrawText( livesTxt, 110, 35, 30, BLACK ); // Sombra
-        DrawText( livesTxt, 108, 33, 30, WHITE ); // Texto principal
-    }
 
-    // Botão de alternar fase (canto superior direito)
-    char faseTxt[32];
-    sprintf( faseTxt, "Fase %d", gw->faseAtual + 1 );
-    float btnFaseW = 120.0f;
-    float btnFaseH = 36.0f;
-    Rectangle btnFase = {
-        GetScreenWidth() - btnFaseW - 16.0f,
-        16.0f,
-        btnFaseW,
-        btnFaseH
-    };
-
-    int novaFase = ( gw->faseAtual + 1 ) % 2;
-    if ( desenharBotao( btnFase, faseTxt, 18,
-            (Color){ 40, 40, 60, 200 },
-            (Color){ 70, 70, 100, 230 },
-            WHITE ) ) {
-        trocarFase( gw, novaFase );
-    }
-
-    // Instrução de pause
-    DrawText( "P - Pausar", 16, 16, 16, (Color){ 255, 255, 255, 150 } );
-
-    // --- Mini HUD de Vidas (apenas Fase 2) ---
-    if ( gw->faseAtual == 1 && gw->jogador != NULL ) {
-        int screenW = GetScreenWidth();
-        int hudFontSize = 22;
-        int hudPad = 10;
-
-        // Fundo semi-transparente do HUD
-        Rectangle hudBg = { 0, 0, (float)screenW, 44.0f };
-        DrawRectangleRec( hudBg, (Color){ 0, 0, 0, 130 } );
-
-        // Vidas do PolarBear (esquerda)
-        char polarbearHud[64];
-        int pbVidas = gw->jogador->quantidadeVidas;
-        if ( pbVidas < 0 ) pbVidas = 0;
-        sprintf( polarbearHud, "Urso: %d", pbVidas );
-        DrawText( polarbearHud, hudPad, hudPad, hudFontSize, (Color){ 180, 220, 255, 255 } );
-
-        // Ícones de vida (corações) do PolarBear
-        for ( int i = 0; i < 3; i++ ) {
-            Color heartColor = ( i < pbVidas ) ? (Color){ 255, 80, 80, 255 } : (Color){ 80, 80, 80, 160 };
-            int hx = hudPad + MeasureText( polarbearHud, hudFontSize ) + 8 + i * 22;
-            int hy = hudPad + hudFontSize / 2 - 8;
-            DrawRectangle( hx, hy, 14, 14, heartColor );
-            DrawRectangleLines( hx, hy, 14, 14, (Color){ 255, 255, 255, 80 } );
-        }
-
-        // Vidas do EarDog (direita)
-        if ( gw->earDog != NULL ) {
-            char earDogHud[64];
-            int edVidas = gw->earDog->quantidadeVidas;
-            if ( edVidas < 0 ) edVidas = 0;
-            sprintf( earDogHud, "EarDog: %d", edVidas );
-            int edTxtW = MeasureText( earDogHud, hudFontSize );
-            int iconsW = 3 * 22;
-            int edTotalW = iconsW + 8 + edTxtW;
-            int edX = screenW - edTotalW - hudPad;
-            DrawText( earDogHud, edX, hudPad, hudFontSize, (Color){ 255, 200, 100, 255 } );
-
-            for ( int i = 0; i < 3; i++ ) {
-                Color heartColor = ( i < edVidas ) ? (Color){ 255, 80, 80, 255 } : (Color){ 80, 80, 80, 160 };
-                int hx = edX + edTxtW + 8 + i * 22;
-                int hy = hudPad + hudFontSize / 2 - 8;
-                DrawRectangle( hx, hy, 14, 14, heartColor );
-                DrawRectangleLines( hx, hy, 14, 14, (Color){ 255, 255, 255, 80 } );
+        // Segmentos de vida (corações / caixas divididas)
+        int maxVidas = (int)gw->jogador->maxVidas;
+        float segW = 28.0f, segH = 18.0f, segPad = 4.0f;
+        float segStartX = 66.0f;
+        float segStartY = 20.0f;
+        for ( int i = 0; i < maxVidas; i++ ) {
+            float sx = segStartX + i * (segW + segPad);
+            
+            // Fundo escuro (vida vazia)
+            DrawRectangleRounded( (Rectangle){sx, segStartY, segW, segH}, 0.3f, 4, (Color){60, 30, 30, 200} );
+            
+            float fillRatio = 0.0f;
+            if ( pbVidas >= i + 1.0f ) {
+                fillRatio = 1.0f;
+            } else if ( pbVidas > i ) {
+                fillRatio = pbVidas - i;
             }
+            
+            if ( fillRatio > 0.0f ) {
+                float fillW = segW * fillRatio;
+                // Recorta o desenho da barra cheia no tamanho de fillRatio
+                BeginScissorMode( (int)sx, (int)segStartY, (int)fillW, (int)segH );
+                DrawRectangleRounded( (Rectangle){sx, segStartY, segW, segH}, 0.3f, 4, (Color){220, 60, 60, 255} );
+                DrawRectangle( (int)sx+3, (int)segStartY+2, (int)segW-6, 4, (Color){255,200,200,100} );
+                EndScissorMode();
+                
+                // Glow na caixa cheia ou preenchida parcialmente
+                DrawRectangleRoundedLines( (Rectangle){sx-1, segStartY-1, segW+2, segH+2}, 0.3f, 4, (Color){255,120,120, 80} );
+            }
+            
+            // Borda
+            DrawRectangleRoundedLines( (Rectangle){sx, segStartY, segW, segH}, 0.3f, 4, (Color){255,255,255, fillRatio > 0.0f ? 120 : 40} );
+            
+            // Partição vertical da metade (traço escuro indicando meio coração)
+            DrawLine( (int)(sx + segW/2.0f), (int)segStartY, (int)(sx + segW/2.0f), (int)(segStartY + segH), (Color){0, 0, 0, 150} );
         }
+    }
+
+    // ─── HUD Instrucao de Pause ───
+    DrawText( "[P] Pausar", 8, screenH - 22, 14, (Color){ 255, 255, 255, 100 } );
+
+    // ─── Botão de Troca de Fase (canto superior direito) ───
+    {
+        char faseTxt[32];
+        sprintf( faseTxt, "Fase %d", gw->faseAtual + 1 );
+        float btnFaseW = 120.0f;
+        float btnFaseH = 34.0f;
+        Rectangle btnFase = {
+            screenW - btnFaseW - 12.0f,
+            12.0f,
+            btnFaseW,
+            btnFaseH
+        };
+        bool hovFase = mouseSobreRect( btnFase );
+        DrawRectangleRounded( btnFase, 0.3f, 6,
+            hovFase ? (Color){80, 60, 120, 230} : (Color){40, 30, 70, 200} );
+        DrawRectangleRoundedLines( btnFase, 0.3f, 6,
+            hovFase ? (Color){200, 160, 255, 200} : (Color){120, 90, 180, 120} );
+        int ftw = MeasureText( faseTxt, 16 );
+        DrawText( faseTxt,
+            (int)(btnFase.x + (btnFaseW - ftw) / 2.0f),
+            (int)(btnFase.y + (btnFaseH - 16) / 2.0f),
+            16, hovFase ? WHITE : (Color){200, 170, 255, 230} );
+        if ( hovFase && IsMouseButtonPressed( MOUSE_BUTTON_LEFT ) ) {
+            trocarFase( gw, (gw->faseAtual + 1) % 2 );
+        }
+    }
+
+
+    // ─── Boss Health Bar — EarDog (Fase 2) ───
+    if ( gw->faseAtual == 1 && gw->earDog != NULL ) {
+        int maxVidas = 7;
+        float vidas = gw->earDog->quantidadeVidas;
+        if ( vidas < 0.0f ) vidas = 0.0f;
+
+        float barW  = (float)screenW * 0.48f;  // 48% da tela
+        float barH  = 22.0f;
+        float barX  = (screenW - barW) / 2.0f;
+        float barY  = 10.0f;
+
+        // Fundo externo (borda escura)
+        DrawRectangle( barX - 2, barY - 2, barW + 4, barH + 4, (Color){ 0, 0, 0, 200 } );
+
+        // Fundo da barra
+        DrawRectangle( barX, barY, barW, barH, (Color){ 30, 18, 10, 240 } );
+
+        // Preenchimento gradiente — de vermelho sangue a laranja
+        float fillW = ((float)vidas / maxVidas) * barW;
+        // Degradê manual: duas fatias
+        DrawRectangle( barX, barY, fillW * 0.5f, barH, (Color){ 140, 10, 10, 255 } );
+        DrawRectangle( barX + fillW * 0.5f, barY, fillW * 0.5f, barH, (Color){ 200, 50, 10, 255 } );
+        // Highlight no topo da barra
+        DrawRectangle( barX, barY, fillW, 5, (Color){ 255, 120, 80, 80 } );
+
+        // Segmentos internos (linhas divisórias a cada 10%)
+        for ( int i = 1; i < maxVidas; i++ ) {
+            float lx = barX + (barW / maxVidas) * i;
+            DrawLine( lx, barY, lx, barY + barH, (Color){ 0, 0, 0, 120 } );
+        }
+
+        // Borda metálica
+        DrawRectangleLines( barX, barY, barW, barH, (Color){ 180, 140, 90, 200 } );
+        DrawRectangleLines( barX-1, barY-1, barW+2, barH+2, (Color){ 80, 60, 40, 150 } );
+
+        // Nome do Boss acima da barra
+        const char *bossName = "--- EarDog ---";
+        int nameW = MeasureText( bossName, 16 );
+        DrawText( bossName, barX + (barW - nameW)/2.0f, barY - 18, 16, (Color){255,200,100,255} );
+
+        // Número de vidas restantes (pequeno, à direita)
+        char vidasTxt[16];
+        sprintf( vidasTxt, "%g/7", vidas );
+        int vidasW = MeasureText( vidasTxt, 13 );
+        DrawText( vidasTxt, barX + barW - vidasW - 4, barY + 4, 13, (Color){255,255,255,200} );
+
     }
 }
 
@@ -514,64 +663,119 @@ static void drawPause( GameWorld *gw ) {
     int screenW = GetScreenWidth();
     int screenH = GetScreenHeight();
 
-    // Overlay escuro semi-transparente
-    DrawRectangle( 0, 0, screenW, screenH, (Color){ 0, 0, 0, 160 } );
+    // ── Overlay escuro com vinheta suave ──
+    DrawRectangle( 0, 0, screenW, screenH, (Color){ 0, 0, 0, 190 } );
 
-    // Painel centralizado
-    float painelW = 360.0f;
-    float painelH = 220.0f;
-    Rectangle painel = {
-        ( screenW - painelW ) / 2.0f,
-        ( screenH - painelH ) / 2.0f,
-        painelW,
-        painelH
-    };
+    // ── Painel central ──
+    float painelW = 340.0f;
+    float painelH = 260.0f;
+    float painelX = ( screenW - painelW ) / 2.0f;
+    float painelY = ( screenH - painelH ) / 2.0f;
+    Rectangle painel = { painelX, painelY, painelW, painelH };
 
-    // Fundo do painel
-    DrawRectangleRounded( painel, 0.15f, 8, (Color){ 20, 20, 40, 230 } );
-    DrawRectangleRoundedLines( painel, 0.15f, 8, (Color){ 100, 150, 255, 150 } );
-
-    // Texto "PAUSADO"
-    const char *pauseTxt = "PAUSADO";
-    int pauseFontSize = 48;
-    int pauseW = MeasureText( pauseTxt, pauseFontSize );
-    DrawText( pauseTxt,
-        (int)( painel.x + ( painelW - pauseW ) / 2.0f ),
-        (int)( painel.y + 30.0f ),
-        pauseFontSize,
-        (Color){ 100, 180, 255, 255 }
+    // Fundo do painel — gradiente simulado com 2 retângulos
+    DrawRectangleRounded( painel, 0.12f, 8, (Color){ 12, 8, 20, 245 } );
+    DrawRectangleRounded(
+        (Rectangle){ painelX+2, painelY+2, painelW-4, painelH/2 },
+        0.12f, 8, (Color){ 30, 20, 50, 80 }
+    );
+    // Bordas: externa escura + interna brilhante
+    DrawRectangleRoundedLines( painel, 0.12f, 8, (Color){ 40, 30, 70, 255 } );
+    DrawRectangleRoundedLines(
+        (Rectangle){ painelX+2, painelY+2, painelW-4, painelH-4 },
+        0.10f, 8, (Color){ 160, 120, 255, 60 }
     );
 
-    // Botão CONTINUAR
-    float btnW = 200.0f;
-    float btnH = 44.0f;
-    float btnX = painel.x + ( painelW - btnW ) / 2.0f;
+    // ── Título "PAUSE" ──
+    const char *tituloPause = "|| PAUSE ||";
+    int tituloSize = 36;
+    int tituloW    = MeasureText( tituloPause, tituloSize );
+    // Sombra
+    DrawText( tituloPause,
+        (int)( painelX + (painelW - tituloW)/2 ) + 2,
+        (int)( painelY + 24 ) + 2,
+        tituloSize, (Color){ 0, 0, 0, 200 } );
+    // Texto principal — roxo brilhante
+    DrawText( tituloPause,
+        (int)( painelX + (painelW - tituloW)/2 ),
+        (int)( painelY + 24 ),
+        tituloSize, (Color){ 200, 160, 255, 255 } );
 
-    Rectangle btnContinuar = { btnX, painel.y + 100.0f, btnW, btnH };
-    if ( desenharBotao( btnContinuar, "CONTINUAR", 22,
-            (Color){ 30, 120, 80, 255 },
-            (Color){ 50, 180, 120, 255 },
-            WHITE ) ) {
+    // Linha decorativa sob o título
+    DrawLine(
+        painelX + 20, painelY + 70,
+        painelX + painelW - 20, painelY + 70,
+        (Color){ 160, 120, 255, 100 }
+    );
+
+    // ── Botões ──
+    float btnW   = 240.0f;
+    float btnH   = 46.0f;
+    float btnX   = painelX + (painelW - btnW) / 2.0f;
+    float btn1Y  = painelY + 90.0f;
+    float btn2Y  = painelY + 150.0f;
+    float btn3Y  = painelY + 205.0f;
+
+    // Botão CONTINUAR
+    Rectangle btnContinuar = { btnX, btn1Y, btnW, btnH };
+    bool hovCont = mouseSobreRect( btnContinuar );
+    DrawRectangleRounded( btnContinuar, 0.2f, 6,
+        hovCont ? (Color){50,160,100,255} : (Color){25,90,55,230} );
+    DrawRectangleRoundedLines( btnContinuar, 0.2f, 6,
+        hovCont ? (Color){160,255,180,200} : (Color){60,150,90,120} );
+    {
+        const char *t = "CONTINUAR";
+        int tw = MeasureText( t, 20 );
+        DrawText( t, btnX + (btnW-tw)/2, btn1Y + (btnH-20)/2, 20,
+            hovCont ? WHITE : (Color){200,255,210,255} );
+    }
+    if ( hovCont && IsMouseButtonPressed( MOUSE_BUTTON_LEFT ) ) {
+        gw->estadoTela = TELA_JOGO;
+    }
+
+    // Botão REINICIAR
+    Rectangle btnReiniciar = { btnX, btn2Y, btnW, btnH };
+    bool hovRein = mouseSobreRect( btnReiniciar );
+    DrawRectangleRounded( btnReiniciar, 0.2f, 6,
+        hovRein ? (Color){180,120,20,255} : (Color){100,65,10,230} );
+    DrawRectangleRoundedLines( btnReiniciar, 0.2f, 6,
+        hovRein ? (Color){255,220,100,200} : (Color){150,100,30,120} );
+    {
+        const char *t = "REINICIAR";
+        int tw = MeasureText( t, 20 );
+        DrawText( t, btnX + (btnW-tw)/2, btn2Y + (btnH-20)/2, 20,
+            hovRein ? WHITE : (Color){255,230,170,255} );
+    }
+    if ( hovRein && IsMouseButtonPressed( MOUSE_BUTTON_LEFT ) ) {
+        inicializar( gw );
         gw->estadoTela = TELA_JOGO;
     }
 
     // Botão MENU
-    Rectangle btnMenu = { btnX, painel.y + 155.0f, btnW, btnH };
-    if ( desenharBotao( btnMenu, "MENU", 22,
-            (Color){ 150, 40, 40, 255 },
-            (Color){ 200, 60, 60, 255 },
-            WHITE ) ) {
-        // Destrói o estado atual e volta ao menu
-        if ( gw->mapa != NULL ) {
-            destruirMapa( gw->mapa );
-            gw->mapa = NULL;
-        }
-        if ( gw->jogador != NULL ) {
-            destruirJogador( gw->jogador );
-            gw->jogador = NULL;
-        }
+    Rectangle btnMenu = { btnX, btn3Y, btnW, btnH };
+    bool hovMenu = mouseSobreRect( btnMenu );
+    DrawRectangleRounded( btnMenu, 0.2f, 6,
+        hovMenu ? (Color){180,40,40,255} : (Color){90,20,20,230} );
+    DrawRectangleRoundedLines( btnMenu, 0.2f, 6,
+        hovMenu ? (Color){255,140,140,200} : (Color){140,60,60,120} );
+    {
+        const char *t = "MENU PRINCIPAL";
+        int tw = MeasureText( t, 20 );
+        DrawText( t, btnX + (btnW-tw)/2, btn3Y + (btnH-20)/2, 20,
+            hovMenu ? WHITE : (Color){255,190,190,255} );
+    }
+    if ( hovMenu && IsMouseButtonPressed( MOUSE_BUTTON_LEFT ) ) {
+        if ( gw->mapa    != NULL ) { destruirMapa( gw->mapa );       gw->mapa    = NULL; }
+        if ( gw->jogador != NULL ) { destruirJogador( gw->jogador ); gw->jogador = NULL; }
+        if ( gw->earDog  != NULL ) { destruirEarDog( gw->earDog );   gw->earDog  = NULL; }
         gw->estadoTela = TELA_MENU;
     }
+
+    // Dica de teclado
+    const char *dica = "ESC / P para continuar";
+    int dicaW = MeasureText( dica, 12 );
+    DrawText( dica, (screenW - dicaW)/2, painelY + painelH + 10, 12,
+        (Color){ 180, 180, 200, 140 } );
 }
 
 /**
@@ -683,6 +887,27 @@ static void inicializar( GameWorld *gw ) {
         destruirEarDog( gw->earDog );
         gw->earDog = NULL;
     }
+    
+    // Limpa todos os inimigos / projeteis antigos para um Full Scene Reset
+    for ( int i = 0; i < MAX_WOLVES; i++ ) {
+        if ( gw->wolves[i] != NULL ) {
+            destruirWolf( gw->wolves[i] );
+            gw->wolves[i] = NULL;
+        }
+    }
+    gw->numWolves = 0;
+    
+    for ( int i = 0; i < MAX_ICE_SHARDS; i++ ) {
+        if ( gw->iceShards[i] != NULL ) {
+            destruirIceShard( gw->iceShards[i] );
+            gw->iceShards[i] = NULL;
+        }
+    }
+    gw->numIceShards = 0;
+    
+    for ( int i = 0; i < MAX_PROJETEIS; i++ ) {
+        gw->projeteis[i].ativo = false;
+    }
 
     if ( gw->faseAtual == 0 ) {
         // Fase 1: Frozen Suburbs
@@ -732,13 +957,12 @@ static void inicializar( GameWorld *gw ) {
 
         float alturaFase = (float)rm.ifsp_highschool.height;
         float spawnX = 100.0f;
-        float spawnY = alturaFase - 63.0f - 30.0f; // chão - altura do jogador
+        float spawnY = 220.0f; // meio do chão - altura do jogador
         gw->jogador = criarJogador( spawnX, spawnY, 20, 30 );
 
         // Spawn EarDog na Fase 2: mesmo Y que o jogador (mesma profundidade)
-        // spawnY coloca os pes do jogador em (alturaFase - 63.0f), portanto ret.y = spawnY
-        float earDogSpawnY = spawnY; // alinhado ao jogador
-        gw->earDog = criarEarDog( 550.0f, earDogSpawnY, 30, 20 );
+        float earDogSpawnY = 220.0f; // alinhado ao jogador
+        gw->earDog = criarEarDog( 600.0f, earDogSpawnY, 44, 27 );
 
         gw->camera = (Camera2D) {
             .offset = { 0 },
@@ -753,6 +977,11 @@ static void inicializar( GameWorld *gw ) {
 }
 
 static void reiniciar( GameWorld *gw ) {
+    inicializar( gw );
+}
+
+void ResetBossScene( GameWorld *gw ) {
+    // Zera completamente o estado da fase e recria entidades
     inicializar( gw );
 }
 
@@ -826,27 +1055,39 @@ static void resolverColisoesFase2( GameWorld *gw ) {
     Jogador *j = gw->jogador;
     EarDog *ed = gw->earDog;
     if ( j == NULL || ed == NULL ) return;
+    if ( ed->estado == ESTADO_EARDOG_MORRENDO ) return;
 
-    Rectangle retJogador = j->ret;
     Rectangle hitboxEarDog = earDogObterHitbox( ed );
 
-    bool socoAtivoFrame = ( j->socando && j->socandoFrame == 2 );
+    // ── EarDog ataca jogador (dash ou salto) ──
+    Rectangle ataqueEarDog = earDogObterHitboxAtaque( ed );
+    bool hitboxAtivaEarDog = ( ataqueEarDog.width > 0.0f );
+    if ( hitboxAtivaEarDog && !ed->hasHitPlayer ) {
+        Rectangle visualJ = obterHitboxVisualJogador( j );
+        if ( CheckCollisionRecs( ataqueEarDog, visualJ ) ) {
+            float depthE = ed->ret.y + ed->ret.height;
+            float depthJ = j->ret.y + j->ret.height;
+            if ( fabsf(depthE - depthJ) < 70.0f ) {
+                if ( j->invencibilidade <= 0.0f ) {
+                    j->quantidadeVidas -= 0.5f;
+                    if ( j->quantidadeVidas < 0.0f ) j->quantidadeVidas = 0.0f;
+                    j->invencibilidade = 1.5f;
+                }
+                ed->hasHitPlayer = true;
+            }
+        }
+    }
 
+    // ── Soco do Urso Polar acerta EarDog ──
+    bool socoAtivoFrame = ( j->socando && j->socandoFrame == 2 ) ||
+                          ( j->socoAereo && !j->socoAereoAterrissou );
     if ( socoAtivoFrame ) {
-        // --- Colisão da MÃO do urso com o EarDog ---
         Rectangle hitboxMao = obterHitboxSocoPolarBear( j );
         if ( CheckCollisionRecs( hitboxMao, hitboxEarDog ) ) {
             earDogReceberDano( ed );
         }
     } else {
-        // --- Contato corpo-a-corpo sem ataque: o urso sofre dano ---
-        if ( CheckCollisionRecs( retJogador, hitboxEarDog ) ) {
-            if ( j->invencibilidade <= 0.0f ) {
-                j->quantidadeVidas--;
-                if ( j->quantidadeVidas < 0 ) j->quantidadeVidas = 0;
-                j->invencibilidade = 1.5f;
-            }
-        }
+        // Sem dano passivo! O boss só dá dano quando ataca.
     }
 }
 

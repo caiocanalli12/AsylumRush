@@ -48,7 +48,8 @@ typedef struct Jogador {
     int quantidadePulos;
     int quantidadeMaxPulos;
 
-    int quantidadeVidas;
+    float quantidadeVidas;
+    float maxVidas; // Limite de cura
     int score;
 
     EstadoJogador estado;
@@ -115,8 +116,12 @@ typedef struct Mapa {
  */
 typedef enum EstadoEarDog {
     ESTADO_EARDOG_PARADO,
-    ESTADO_EARDOG_ATACANDO,
+    ESTADO_EARDOG_ANDANDO,
+    ESTADO_EARDOG_INVESTINDO,    // Dash rapido (lateral, de perfil) em direcao ao jogador
+    ESTADO_EARDOG_LATINDO,       // Barking - latido, dispara summon
+    ESTADO_EARDOG_ATACANDO,      // Bote lateral (running lunge, frames de Running)
     ESTADO_EARDOG_TOMANDO_GOLPE,
+    ESTADO_EARDOG_MORRENDO,
 } EstadoEarDog;
 
 /**
@@ -132,13 +137,24 @@ typedef struct EarDog {
     float puloY;
     float puloVel;
     EstadoEarDog estado;
+    float stateTimer;          // Tempo acumulado no estado atual
+    float decideTimer;         // Timer para decidir proximo ataque
 
     // Vidas e sistema de dano
-    int quantidadeVidas;   // 3 vidas iniciais
-    bool tomandoGolpe;     // true enquanto a anim de hit roda
-    int hitFrame;          // frame atual da anim de hit (0-2)
-    float hitTimer;        // tempo acumulado no frame atual
-    float invencibilidade; // cooldown de invencibilidade apos tomar dano (evita multi-hit)
+    float quantidadeVidas;
+    bool tomandoGolpe;
+    int hitFrame;
+    float hitTimer;
+    float invencibilidade;
+    float hitFlashTimer;       // Timer para flash branco ao tomar hit
+    
+    // Attack and state properties
+    float attackCooldown;
+    bool hasHitPlayer;
+    
+    // Summon properties (atrelado a perda de HP)
+    float lastSummonHP;          // HP do boss na ultima vez que invocou minion
+    bool summonPendente;       // True quando vai invocar minions ao fim do latido
 } EarDog;
 
 /**
@@ -166,7 +182,7 @@ typedef struct Wolf {
     float puloVel;
     
     EstadoWolf estado;
-    int quantidadeVidas;
+    float quantidadeVidas;
     float invencibilidade;
     
     // Attack properties
@@ -202,7 +218,7 @@ typedef struct IceShard {
     float targetY;
     
     EstadoIceShard estado;
-    int quantidadeVidas;
+    float quantidadeVidas;
     float invencibilidade;
     
     float animTimer;
