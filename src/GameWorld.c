@@ -739,33 +739,86 @@ static void drawJogo( GameWorld *gw ) {
 
         // --- HUD Belial (canto superior direito) ---
         if ( gw->modo2Jogadores && gw->belial != NULL ) {
-            int screenW = GetScreenWidth();
-            // Ícone do Belial: frame parado (walk_frames[0] = {1,47,49,43})
+            int bVidas = gw->belial->quantidadeVidas;
+            if ( bVidas < 0 ) bVidas = 0;
+            int maxVidasB = 3;
+
+            // Painel de fundo da HUD (espelhado à direita)
+            float bPanelW = 160.0f;
+            float bPanelH = 52.0f;
+            float bPanelX = (float)screenW - bPanelW - 8.0f;
+            float bPanelY = 8.0f;
+            Rectangle bHudPanel = { bPanelX, bPanelY, bPanelW, bPanelH };
+            DrawRectangleRounded( bHudPanel, 0.25f, 6, (Color){ 0, 0, 0, 160 } );
+            DrawRectangleRoundedLines( bHudPanel, 0.25f, 6, (Color){ 200, 200, 220, 80 } );
+
+            // Ícone do Belial (canto superior direito do painel)
             Texture2D belialTex = rm.belial;
-            Rectangle bIconSrc  = { 1, 47, 49, 43 };
-            float bIconScale = 2.5f;
-            float bIconW = 49 * bIconScale;
-            float bIconH = 43 * bIconScale;
-            float bIconX = (float)screenW - bIconW - 20.0f;
-            float bIconY = 12.0f;
+            float bIconScale = 2.0f;
+            float bIconW = 23 * bIconScale;
+            float bIconH = 20 * bIconScale;
+            float bIconX = (float)screenW - bIconW - 12.0f;
+            float bIconY = 14.0f;
+            Rectangle bIconSrcFace = { 25, 50, 23, 20 };
             Rectangle bIconDest = { bIconX, bIconY, bIconW, bIconH };
-            DrawTexturePro( belialTex, bIconSrc, bIconDest, (Vector2){0,0}, 0.0f, WHITE );
+            DrawTexturePro( belialTex, bIconSrcFace, bIconDest, (Vector2){0,0}, 0.0f, WHITE );
 
-            // Texto de vidas
-            int bVidas = ( gw->belial->quantidadeVidas > 0 ) ? gw->belial->quantidadeVidas : 0;
+            // Segmentos de vida (idênticos ao PolarBear, alinhados à esquerda do ícone)
+            float segW = 28.0f, segH = 18.0f, segPad = 4.0f;
+            // Os segmentos crescem da direita para a esquerda
+            float segEndX   = bIconX - 6.0f;   // lado direito do bloco de segmentos
+            float segStartY = 20.0f;
+            for ( int i = 0; i < maxVidasB; i++ ) {
+                // Segmento mais próximo do ícone = última vida (i=0 é a mais à direita)
+                float sx = segEndX - (i + 1) * segW - i * segPad;
+
+                // Fundo escuro (vida vazia)
+                DrawRectangleRounded( (Rectangle){sx, segStartY, segW, segH}, 0.3f, 4, (Color){60, 30, 30, 200} );
+
+                float fillRatio = 0.0f;
+                int revIdx = maxVidasB - 1 - i; // índice lógico (0 = primeira vida)
+                if ( bVidas >= revIdx + 1 ) {
+                    fillRatio = 1.0f;
+                } else if ( bVidas > revIdx ) {
+                    fillRatio = (float)(bVidas - revIdx);
+                }
+
+                if ( fillRatio > 0.0f ) {
+                    float fillW = segW * fillRatio;
+                    // Recorta no tamanho de fillRatio (fill cresce da esquerda)
+                    BeginScissorMode( (int)sx, (int)segStartY, (int)fillW, (int)segH );
+                    DrawRectangleRounded( (Rectangle){sx, segStartY, segW, segH}, 0.3f, 4, (Color){220, 140, 20, 255} );
+                    DrawRectangle( (int)sx+3, (int)segStartY+2, (int)segW-6, 4, (Color){255,230,150,100} );
+                    EndScissorMode();
+
+                    // Glow laranja na caixa preenchida
+                    DrawRectangleRoundedLines( (Rectangle){sx-1, segStartY-1, segW+2, segH+2}, 0.3f, 4, (Color){255,180,60, 80} );
+                }
+
+                // Borda
+                DrawRectangleRoundedLines( (Rectangle){sx, segStartY, segW, segH}, 0.3f, 4, (Color){255,255,255, fillRatio > 0.0f ? 120 : 40} );
+
+                // Partição vertical da metade
+                DrawLine( (int)(sx + segW/2.0f), (int)segStartY, (int)(sx + segW/2.0f), (int)(segStartY + segH), (Color){0, 0, 0, 150} );
+            }
+
+            // Texto de vidas (à esquerda dos segmentos, com sombra)
+            int bVidasInt = gw->belial->quantidadeVidas;
+            if ( bVidasInt < 0 ) bVidasInt = 0;
             char bLivesTxt[16];
-            sprintf( bLivesTxt, "%d X", bVidas );
-            int bTxtW = MeasureText( bLivesTxt, 30 );
-            DrawText( bLivesTxt, (int)bIconX - bTxtW - 4, 35, 30, BLACK );
-            DrawText( bLivesTxt, (int)bIconX - bTxtW - 6, 33, 30, (Color){ 255, 180, 80, 255 } );
+            sprintf( bLivesTxt, "%d X", bVidasInt );
+            float segBlockLeft = segEndX - maxVidasB * segW - (maxVidasB - 1) * segPad;
+            int bTxtW = MeasureText( bLivesTxt, 22 );
+            DrawText( bLivesTxt, (int)(segBlockLeft - bTxtW - 4), 37, 22, BLACK );
+            DrawText( bLivesTxt, (int)(segBlockLeft - bTxtW - 6), 35, 22, (Color){ 255, 180, 80, 255 } );
 
-            // Timer de respawn do Belial (abaixo do ícone)
+            // Timer de respawn do Belial (abaixo do painel)
             if ( !gw->belial->ativo && gw->belial->respawnTimer > 0.0f ) {
                 char bTimerTxt[32];
                 sprintf( bTimerTxt, "Respawn: %d s", (int)ceilf( gw->belial->respawnTimer ) );
                 int bTimW = MeasureText( bTimerTxt, 20 );
-                DrawText( bTimerTxt, screenW - bTimW - 18, 90, 20, BLACK );
-                DrawText( bTimerTxt, screenW - bTimW - 20, 88, 20, (Color){ 255, 220, 60, 255 } );
+                DrawText( bTimerTxt, screenW - bTimW - 18, 68, 20, BLACK );
+                DrawText( bTimerTxt, screenW - bTimW - 20, 66, 20, (Color){ 255, 220, 60, 255 } );
             }
         }
     }
