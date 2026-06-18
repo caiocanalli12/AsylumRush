@@ -860,7 +860,7 @@ static void drawJogo( GameWorld *gw ) {
     // ─── HUD Instrucao de Pause ───
     DrawText( "[P] Pausar", 8, screenH - 22, 14, (Color){ 255, 255, 255, 100 } );
 
-    // ─── Botão de Troca de Fase (canto superior direito) ───
+    // ─── Botão de Troca de Fase (canto inferior direito) ───
     {
         char faseTxt[32];
         sprintf( faseTxt, "Fase %d", gw->faseAtual + 1 );
@@ -868,7 +868,7 @@ static void drawJogo( GameWorld *gw ) {
         float btnFaseH = 34.0f;
         Rectangle btnFase = {
             screenW - btnFaseW - 12.0f,
-            12.0f,
+            screenH - btnFaseH - 12.0f,
             btnFaseW,
             btnFaseH
         };
