@@ -45,7 +45,8 @@ Jogador *criarJogador( float x, float y, float w, float h ) {
     novoJogador->quantidadePulos = 0;
     novoJogador->quantidadeMaxPulos = 1;
 
-    novoJogador->quantidadeVidas = 3;
+    novoJogador->quantidadeVidas = 3.0f;
+    novoJogador->maxVidas = 3.0f;
     novoJogador->score = 0;
 
     novoJogador->estado = ESTADO_JOGADOR_PARADO;
@@ -172,8 +173,8 @@ void entradaJogador( Jogador *j, GameWorld *gw, float delta ) {
             }
         }
 
-        // Permite mover verticalmente na rua APENAS na fase 0 (fase 1 nao tem profundidade)
-        if ( gw->faseAtual == 0 && ( j->noPulo || jogadorNoChaoCustom( j, gw->mapa ) ) ) {
+        // Permite mover verticalmente na rua em ambas as fases
+        if ( (gw->faseAtual == 0 || gw->faseAtual == 1) && ( j->noPulo || jogadorNoChaoCustom( j, gw->mapa ) ) ) {
             if ( cimaDown ) {
                 j->vel.y -= j->aceleracao * delta;
                 if ( j->vel.y < -j->velAndando ) {
@@ -192,15 +193,6 @@ void entradaJogador( Jogador *j, GameWorld *gw, float delta ) {
                     j->vel.y += j->desaceleracao * delta;
                     if ( j->vel.y > 0 ) j->vel.y = 0;
                 }
-            }
-        } else if ( gw->faseAtual != 0 ) {
-            // Fase 2: sem movimento em profundidade, zera vel.y
-            if ( j->vel.y > 0 ) {
-                j->vel.y -= j->desaceleracao * delta;
-                if ( j->vel.y < 0 ) j->vel.y = 0;
-            } else if ( j->vel.y < 0 ) {
-                j->vel.y += j->desaceleracao * delta;
-                if ( j->vel.y > 0 ) j->vel.y = 0;
             }
         }
 
@@ -330,9 +322,9 @@ void atualizarJogador( Jogador *j, GameWorld *gw, float delta ) {
             }
         } else {
             // Fase 2: IFSP High School (arena menor, sem mezanino)
-            // Clamp dos pés entre 160.0f (fim dos armários/início do chão) e a altura real do fundo
+            // Clamp dos pés entre 200.0f (meio do chão/carpete) e a altura real do fundo
             float max_y = (float)rm.ifsp_highschool.height;
-            if ( feet_y < 160.0f ) feet_y = 160.0f;
+            if ( feet_y < 200.0f ) feet_y = 200.0f;
             if ( feet_y > max_y ) feet_y = max_y;
             j->ret.y = feet_y - j->ret.height;
         }

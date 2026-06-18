@@ -49,7 +49,7 @@ IceShard *criarIceShard( float x, float y ) {
     is->floatTimer = (float)(rand() % 100) / 100.0f * PI; // Offset randomico
     
     is->estado = ESTADO_ICESHARD_FLUTUANDO;
-    is->quantidadeVidas = 2; // Morre com 2 socos aereos
+    is->quantidadeVidas = 1.0f; // Morre com 1 soco aereo
     is->invencibilidade = 0.0f;
     
     is->animTimer = 0.0f;

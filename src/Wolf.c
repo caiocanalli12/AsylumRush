@@ -52,7 +52,7 @@ Wolf *criarWolf( float x, float y, float w, float h ) {
     novoWolf->animFrame = 0;
     
     novoWolf->estado = ESTADO_WOLF_PARADO;
-    novoWolf->quantidadeVidas = 3; // 3 socos para morrer
+    novoWolf->quantidadeVidas = 1.0f; // 1 soco para morrer
     novoWolf->invencibilidade = 0.0f;
     
     novoWolf->puloY = 0.0f;
@@ -359,7 +359,7 @@ void desenharWolf( Wolf *w ) {
         src.width = -src.width;
     }
 
-    float scale = 0.5f; // Scale reduced from 2.0 to 0.5 because image is 4x larger
+    float scale = 0.25f; // Diminuído pela metade (era 0.5f)
     float drawW = fabsf( src.width ) * scale;
     float drawH = src.height * scale;
 
@@ -417,7 +417,7 @@ void wolfReceberDano( Wolf *w ) {
 }
 
 Rectangle wolfObterHitboxCorpo( Wolf *w ) {
-    float scale = 0.5f;
+    float scale = 0.25f;
     float spriteW = 200.0f * scale; // Approx scaled width
     float spriteH = 132.0f * scale;
 
