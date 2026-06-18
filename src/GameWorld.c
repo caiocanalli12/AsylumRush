@@ -246,28 +246,45 @@ static void updateJogo( GameWorld *gw, float delta ) {
                 // Wolf ataca jogador (apenas dano de ataque)
                 if ( w->estado == ESTADO_WOLF_ATACANDO && !w->hasHitPlayer ) {
                     Rectangle ataqueWolf = wolfObterHitboxAtaque( w );
-                    Rectangle visualJ = obterHitboxVisualJogador( j );
-                    
-                    // Colisão visual 2D
-                    if ( CheckCollisionRecs( ataqueWolf, visualJ ) ) {
-                        // Verificação de profundidade 2.5D (z-axis)
-                        float depthW = w->ret.y + w->ret.height;
-                        float depthJ = j->ret.y + j->ret.height;
-                        if ( fabsf(depthW - depthJ) < 60.0f ) {
-                            if ( j->invencibilidade <= 0.0f ) {
-                                j->quantidadeVidas -= 0.5f;
-                                j->invencibilidade = 1.5f;
-                                w->hasHitPlayer = true;
+
+                    // --- Colisão com PolarBear ---
+                    if ( j->ativo ) {
+                        Rectangle visualJ = obterHitboxVisualJogador( j );
+                        if ( CheckCollisionRecs( ataqueWolf, visualJ ) ) {
+                            float depthW = w->ret.y + w->ret.height;
+                            float depthJ = j->ret.y + j->ret.height;
+                            if ( fabsf(depthW - depthJ) < 60.0f ) {
+                                if ( j->invencibilidade <= 0.0f ) {
+                                    j->quantidadeVidas -= 0.5f;
+                                    j->invencibilidade = 1.5f;
+                                    w->hasHitPlayer = true;
+                                }
                             }
                         }
                     }
+
+                    // --- Colisão com Belial ---
+                    if ( gw->modo2Jogadores && b != NULL && b->ativo && !w->hasHitPlayer ) {
+                        Rectangle visualB = obterHitboxVisualJogador( (Jogador*)b );
+                        if ( CheckCollisionRecs( ataqueWolf, visualB ) ) {
+                            float depthW = w->ret.y + w->ret.height;
+                            float depthB = b->ret.y + b->ret.height;
+                            if ( fabsf(depthW - depthB) < 60.0f ) {
+                                if ( b->invencibilidade <= 0.0f ) {
+                                    b->quantidadeVidas--;
+                                    b->invencibilidade = 1.5f;
+                                    w->hasHitPlayer = true;
+                                }
+                            }
+                        }
+                    }
+                }
             } else if ( w != NULL && !w->ativo ) {
                 // Minion terminou a animacao de morte -> destruir e liberar memoria
                 destruirWolf( w );
                 gw->wolves[i] = NULL;
             }
         }
-    }
         // Soco (normal ou aéreo) do jogador acerta Ice Shard
         for ( int i = 0; i < gw->numIceShards; i++ ) {
             IceShard *is = gw->iceShards[i];
@@ -309,21 +326,37 @@ static void updateJogo( GameWorld *gw, float delta ) {
         for ( int i = 0; i < MAX_PROJETEIS; i++ ) {
             if ( gw->projeteis[i].ativo ) {
                 Rectangle projRet = { gw->projeteis[i].pos.x - 10, gw->projeteis[i].pos.y - 10, 20, 20 };
+                // --- Acerta PolarBear ---
                 if ( j->ativo && CheckCollisionRecs( projRet, j->ret ) ) {
                     gw->projeteis[i].ativo = false;
                     if ( j->invencibilidade <= 0.0f ) {
                         j->quantidadeVidas -= 0.5f;
                         j->invencibilidade = 1.5f;
                     }
+                // --- Acerta Belial ---
+                } else if ( gw->modo2Jogadores && b != NULL && b->ativo && CheckCollisionRecs( projRet, b->ret ) ) {
+                    gw->projeteis[i].ativo = false;
+                    if ( b->invencibilidade <= 0.0f ) {
+                        b->quantidadeVidas--;
+                        b->invencibilidade = 1.5f;
+                    }
                 }
             }
         }
         
-        // --- Gerenciador de Vidas (Life Manager) - Apenas Fase 1 ---
+        // --- Gerenciador de Vidas (Life Manager) - Fase 1 ---
+        // PolarBear
         if ( j->quantidadeVidas <= 0 ) {
-            // Reset direto da fase sem tela de Game Over
             inicializar( gw );
-            return; // Interrompe o update atual, pois tudo foi recriado
+            return;
+        }
+        // Belial
+        if ( gw->modo2Jogadores && b != NULL && b->ativo && b->quantidadeVidas <= 0 ) {
+            b->quantidadeVidas = 0;
+            b->ativo = false;
+            b->respawnTimer = 3.0f;
+            b->ret.x = -999.0f; b->ret.y = -999.0f;
+            b->vel = (Vector2){0, 0};
         }
 
     }
