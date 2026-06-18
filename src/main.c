@@ -21,7 +21,7 @@ int main( void ) {
         60,              // target FPS
         false,           // antialiasing
         false,           // resizable
-        true,           // full screen
+        false,           // full screen
         false,           // undecorated
         false,           // always on top
         false,           // invisible background
