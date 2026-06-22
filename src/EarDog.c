@@ -198,6 +198,32 @@ void earDogReceberDano( EarDog *ed ) {
     ed->vel.y = 0.0f;
 }
 
+void earDogReceberDanoEspecial( EarDog *ed, int dano ) {
+    if ( ed == NULL ) return;
+    if ( ed->invencibilidade > 0.0f ) return;
+    if ( ed->estado == ESTADO_EARDOG_MORRENDO ) return;
+
+    ed->quantidadeVidas -= dano;
+    if ( ed->quantidadeVidas < 0 ) ed->quantidadeVidas = 0;
+
+    /* Verifica se perdeu 2 HP desde o último summon → invoca 1 minion */
+    if ( ed->lastSummonHP - ed->quantidadeVidas >= 2 && ed->quantidadeVidas > 0 ) {
+        ed->summonPendente = true;
+        ed->lastSummonHP   = ed->quantidadeVidas;
+    }
+
+    ed->tomandoGolpe    = true;
+    ed->hitFrame        = 0;
+    ed->hitTimer        = 0.0f;
+    ed->estado          = ESTADO_EARDOG_TOMANDO_GOLPE;
+    ed->invencibilidade = 1.2f;
+    ed->hitFlashTimer   = 0.4f;
+
+    /* Para o movimento ao tomar hit */
+    ed->vel.x = 0.0f;
+    ed->vel.y = 0.0f;
+}
+
 /* ──────────────────────────────────────────────
    Update — Máquina de Estados
    ────────────────────────────────────────────── */

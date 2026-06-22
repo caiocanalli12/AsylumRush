@@ -416,6 +416,37 @@ void wolfReceberDano( Wolf *w ) {
     w->invencibilidade = 0.5f;
 }
 
+void wolfReceberDanoEspecial( Wolf *w, int dano ) {
+    if ( w == NULL || !w->ativo ) return;
+    if ( w->invencibilidade > 0.0f ) return;
+    if ( w->estado == ESTADO_WOLF_MORRENDO ) return;
+
+    w->quantidadeVidas -= dano;
+    if ( w->quantidadeVidas <= 0 ) {
+        w->quantidadeVidas = 0;
+        w->estado = ESTADO_WOLF_MORRENDO;
+        w->hitFrame = 0;
+        w->hitTimer = 0.0f;
+        w->vel.x = 0;
+    } else {
+        w->estado = ESTADO_WOLF_TOMANDO_GOLPE;
+        w->hitFrame = 0;
+        w->hitTimer = 0.0f;
+        
+        // Knockback proporcional a largura do lobo
+        Rectangle hitbox = wolfObterHitboxCorpo( w );
+        float width = hitbox.width; 
+        float forcaX = width * 1.5f; // Fator de knockback (ex: 100 * 1.5 = 150)
+        
+        // Empurrao pra tras 2.5D
+        w->vel.x = w->olhandoParaDireita ? -forcaX : forcaX;
+        w->vel.y = 0.0f;
+        w->puloVel = -150.0f; // Leve recuo pra cima
+    }
+
+    w->invencibilidade = 0.5f;
+}
+
 Rectangle wolfObterHitboxCorpo( Wolf *w ) {
     float scale = 0.25f;
     float spriteW = 200.0f * scale; // Approx scaled width

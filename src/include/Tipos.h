@@ -69,6 +69,12 @@ typedef struct Jogador {
     float socandoTimer;    // tempo acumulado no frame atual
     float socandoCooldown; // tempo restante de cooldown no frame final
 
+    // Soco Especial (tecla R)
+    bool socoEspecial;
+    int socoEspecialFrame;
+    float socoEspecialTimer;
+    float socoEspecialCooldown;
+
     // Soco aereo (no ar)
     bool socoAereo;           // true: soco aereo ativo (F pressionado no ar)
     bool socoAereoAterrissou; // true: ja pousou, exibindo frame de pouso

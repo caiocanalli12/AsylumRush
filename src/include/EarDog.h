@@ -33,6 +33,7 @@ void desenharEarDog( EarDog *ed );
  * @brief Aplica dano ao EarDog (chamado quando a hitbox de ataque do PolarBear colide).
  */
 void earDogReceberDano( EarDog *ed );
+void earDogReceberDanoEspecial( EarDog *ed, int dano );
 
 /**
  * @brief Retorna o retângulo de hitbox visual do EarDog proporcional ao sprite.

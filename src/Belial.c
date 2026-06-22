@@ -45,7 +45,7 @@ Belial *criarBelial( float x, float y, float w, float h ) {
     novoBelial->desaceleracao = 800;
 
     novoBelial->quantidadePulos = 0;
-    novoBelial->quantidadeMaxPulos = 1;
+    novoBelial->quantidadeMaxPulos = 2;
 
     novoBelial->quantidadeVidas = 3;
     novoBelial->score = 0;
@@ -203,10 +203,16 @@ void entradaBelial( Belial *b, GameWorld *gw, float delta ) {
         }
 
         // Pular com L
-        if ( puloPressed && !b->noPulo && belialNoChaoCustom( b, gw->mapa ) ) {
-            b->noPulo = true;
-            b->puloVel = -350.0f;
-            b->puloY = 0.0f;
+        if ( puloPressed && !b->socando && !b->socoAereo && !b->socoAereoAterrissou ) {
+            if ( !b->noPulo && belialNoChaoCustom( b, gw->mapa ) ) {
+                b->noPulo = true;
+                b->puloVel = -350.0f;
+                b->puloY = 0.0f;
+                b->quantidadePulos = 1;
+            } else if ( b->noPulo && b->quantidadePulos < b->quantidadeMaxPulos ) {
+                b->puloVel = -350.0f;
+                b->quantidadePulos++;
+            }
         }
     } else {
         if ( b->vel.x > 0 ) {
@@ -323,6 +329,7 @@ void atualizarBelial( Belial *b, GameWorld *gw, float delta ) {
     } else {
         b->noPulo = false;
         b->puloY = 0.0f;
+        b->quantidadePulos = 0;
 
         b->vel.y += gw->gravidade * delta;
         if ( b->vel.y > b->velMaxQueda ) {
@@ -349,6 +356,7 @@ void atualizarBelial( Belial *b, GameWorld *gw, float delta ) {
             b->puloY = 0.0f;
             b->puloVel = 0.0f;
             b->noPulo = false;
+            b->quantidadePulos = 0;
         }
     }
 
@@ -392,7 +400,7 @@ void atualizarBelial( Belial *b, GameWorld *gw, float delta ) {
             }
         }
     } else if ( b->estado == ESTADO_JOGADOR_PARADO ) {
-        b->animTimer = 0.0f;
+        b->animTimer += delta;
         b->animFrame = 0;
     } else if ( b->estado == ESTADO_JOGADOR_ANDANDO ) {
         float currentSpeed = sqrtf( b->vel.x * b->vel.x + b->vel.y * b->vel.y );
@@ -401,13 +409,8 @@ void atualizarBelial( Belial *b, GameWorld *gw, float delta ) {
         b->animTimer += delta * animSpeed;
         b->animFrame = (int) b->animTimer;
     } else if ( b->estado == ESTADO_JOGADOR_PULANDO ) {
-        float vertical_vel = b->noPulo ? b->puloVel : b->vel.y;
-        if ( vertical_vel < 0 ) {
-            b->animFrame = 3; // Pulo (subindo)
-        } else {
-            b->animFrame = 5; // Queda
-        }
-        b->animTimer = 0.0f;
+        b->animTimer += delta;
+        b->animFrame = 0;
     }
 
     // Ataque aéreo
@@ -436,7 +439,16 @@ void atualizarBelial( Belial *b, GameWorld *gw, float delta ) {
 
 void desenharBelial( Belial *b ) {
 
-    // Walk frames (Row 1): 6 frames
+    // Idle frames (Row 1): 5 frames
+    static const Rectangle idle_frames[5] = {
+        { 1, 1, 46, 43 },
+        { 51, 1, 46, 43 },
+        { 100, 1, 46, 43 },
+        { 149, 1, 48, 43 },
+        { 199, 1, 49, 43 }
+    };
+
+    // Walk frames (Row 2): 6 frames
     static const Rectangle walk_frames[6] = {
         { 1, 47, 49, 43 },
         { 52, 47, 48, 43 },
@@ -446,7 +458,17 @@ void desenharBelial( Belial *b ) {
         { 250, 49, 46, 43 }
     };
 
-    // Attack / soco frames (Row 3): 4 frames
+    // Jump frames (bater trombas como asas - Row 3): 6 frames
+    static const Rectangle jump_frames[6] = {
+        { 170, 93, 47, 43 }, // narrowest (tromba recolhida)
+        { 115, 94, 49, 46 }, 
+        { 59, 93, 51, 46 },  
+        { 344, 101, 51, 44 }, 
+        { 282, 97, 56, 48 }, 
+        { 221, 95, 56, 48 }  // widest (tromba aberta)
+    };
+
+    // Attack / soco frames (Row 4): 4 frames
     static const Rectangle punch_frames[4] = {
         { 134, 144, 43, 43 },  // Frame 0: preparação
         { 184, 144, 37, 43 },  // Frame 1: recuo
@@ -454,27 +476,33 @@ void desenharBelial( Belial *b ) {
         { 65, 143, 59, 44 }    // Frame 3: cooldown (recuperação)
     };
 
+    // Aerial attack frames (Row 5): 2 frames
+    static const Rectangle fly_frames[2] = {
+        { 61, 195, 56, 52 },   // ascendente/ativo
+        { 2, 194, 53, 49 }     // descendente/cooldown
+    };
+
     Texture2D tex = rm.belial;
     Rectangle src;
 
     if ( b->socoAereo || b->socoAereoAterrissou ) {
-        // Ataque aéreo: usa frames de bater a tromba (ativo na subida, cooldown no pouso)
-        src = b->socoAereoAterrissou ? punch_frames[3] : punch_frames[2];
+        src = b->socoAereoAterrissou ? fly_frames[1] : fly_frames[0];
+        // Os frames de ataque aéreo na spritesheet estão desenhados virados para a esquerda,
+        // ao contrário do restante da spritesheet que olha para a direita. Invertemos a base:
+        src.width = -src.width;
     } else if ( b->estado == ESTADO_JOGADOR_SOCANDO ) {
         src = punch_frames[b->socandoFrame];
     } else if ( b->estado == ESTADO_JOGADOR_PARADO ) {
-        src = walk_frames[0];
+        src = idle_frames[(int)(b->animTimer * 2.0f) % 5];
     } else if ( b->estado == ESTADO_JOGADOR_ANDANDO ) {
         src = walk_frames[b->animFrame % 6];
     } else { // ESTADO_JOGADOR_PULANDO
-        float vertical_vel = b->noPulo ? b->puloVel : b->vel.y;
-        if ( vertical_vel < 0 ) {
-            src = walk_frames[3];
-        } else {
-            src = walk_frames[5];
-        }
+        // Usa as animações de "bater asa"
+        src = jump_frames[(int)(b->animTimer * 10.0f) % 6];
     }
 
+    // A spritesheet do Belial originalmente está desenhada voltada para a DIREITA (igual o urso)
+    // Então, se ele estiver olhando para a esquerda, espelhamos a imagem invertendo a largura:
     if ( !b->olhandoParaDireita ) {
         src.width = -src.width;
     }

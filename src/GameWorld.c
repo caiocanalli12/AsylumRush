@@ -114,20 +114,18 @@ void destroyGameWorld( GameWorld *gw ) {
 static Rectangle obterRetanguloBotaoMenu( int indiceBotao ) {
     int screenW = GetScreenWidth();
     int screenH = GetScreenHeight();
-    float scaleX = (float)screenW / 1672.0f;
-    float scaleY = (float)screenH / 941.0f;
+    float scaleX = (float)screenW / 1024.0f;
+    float scaleY = (float)screenH / 576.0f;
     
-    float bx = 598.0f * scaleX;
-    float bw = 472.0f * scaleX;
-    float bh = 71.0f * scaleY;
+    float bx = 318.0f * scaleX;
+    float bw = 391.0f * scaleX;
+    float bh = 65.0f * scaleY;
     
     float by = 0.0f;
     switch ( indiceBotao ) {
-        case 0: by = 495.0f; break; // 1 Player
-        case 1: by = 573.0f; break; // 2 Players
-        case 2: by = 651.0f; break; // Options
-        case 3: by = 729.0f; break; // Credits
-        case 4: by = 808.0f; break; // Quit Game
+        case 0: by = 320.0f; break; // 1 Player
+        case 1: by = 389.0f; break; // 2 Players
+        case 2: by = 457.0f; break; // Quit Game
     }
     by *= scaleY;
     
@@ -161,8 +159,8 @@ static void updateMenu( GameWorld *gw ) {
         gw->estadoTela = TELA_JOGO;
     }
     
-    // Detect click on "Quit Game" (Button 4)
-    Rectangle btnQuit = obterRetanguloBotaoMenu( 4 );
+    // Detect click on "Quit Game" (Button 2)
+    Rectangle btnQuit = obterRetanguloBotaoMenu( 2 );
     if ( mouseSobreRect( btnQuit ) && IsMouseButtonPressed( MOUSE_BUTTON_LEFT ) ) {
         gw->deveSair = true;
     }
@@ -220,11 +218,16 @@ static void updateJogo( GameWorld *gw, float delta ) {
                 // PolarBear hit
                 bool jogadorSocandoFrameDano = ( j->socando && j->socandoFrame == 2 ) ||
                                                ( j->socoAereo && !j->socoAereoAterrissou );
-                if ( jogadorSocandoFrameDano && j->ativo ) {
+                bool especialDano = ( j->socoEspecial && j->socoEspecialFrame == 3 && j->socoEspecialCooldown < 0.1f );
+                if ( (jogadorSocandoFrameDano || especialDano) && j->ativo ) {
                     Rectangle hitboxMao = obterHitboxSocoPolarBear( j );
                     Rectangle corpoWolf = wolfObterHitboxCorpo( w );
                     if ( CheckCollisionRecs( hitboxMao, corpoWolf ) ) {
-                        wolfReceberDano( w );
+                        if ( especialDano ) {
+                            wolfReceberDanoEspecial( w, 2 );
+                        } else {
+                            wolfReceberDano( w );
+                        }
                         if ( w->estado == ESTADO_WOLF_MORRENDO ) {
                             j->quantidadeVidas += 0.5f;
                             if ( j->quantidadeVidas > j->maxVidas ) j->quantidadeVidas = j->maxVidas;
@@ -464,11 +467,16 @@ static void updateJogo( GameWorld *gw, float delta ) {
             if ( w != NULL && w->ativo && w->estado != ESTADO_WOLF_MORRENDO ) {
                 bool socoDano = ( j2->socando && j2->socandoFrame == 2 ) ||
                                 ( j2->socoAereo && !j2->socoAereoAterrissou );
-                if ( socoDano ) {
+                bool especialDano = ( j2->socoEspecial && j2->socoEspecialFrame == 3 && j2->socoEspecialCooldown < 0.1f );
+                if ( socoDano || especialDano ) {
                     Rectangle hitboxMao = obterHitboxSocoPolarBear( j2 );
                     Rectangle corpoW    = wolfObterHitboxCorpo( w );
                     if ( CheckCollisionRecs( hitboxMao, corpoW ) ) {
-                        wolfReceberDano( w );
+                        if ( especialDano ) {
+                            wolfReceberDanoEspecial( w, 2 );
+                        } else {
+                            wolfReceberDano( w );
+                        }
                         if ( w->estado == ESTADO_WOLF_MORRENDO ) {
                             j2->quantidadeVidas += 0.5f;
                             if ( j2->quantidadeVidas > j2->maxVidas ) j2->quantidadeVidas = j2->maxVidas;
@@ -584,13 +592,13 @@ static void drawMenu( GameWorld *gw ) {
     DrawTexturePro( rm.frozensuburbs_blurred, srcBg, destBg, origin, 0.0f, WHITE );
 
     // 2. Desenha a textura do menu (menu.png) por cima do fundo
-    Rectangle srcMenu = { 0, 0, 1672.0f, 941.0f };
+    Rectangle srcMenu = { 0, 0, 1024.0f, 576.0f };
     Rectangle destMenu = { 0, 0, (float)screenW, (float)screenH };
     DrawTexturePro( rm.menu, srcMenu, destMenu, origin, 0.0f, WHITE );
 
     // 3. Desenha os efeitos hover e seletores para os botões do menu
-    // São 5 botões: 0=1 Player, 1=2 Players, 2=Options, 3=Credits, 4=Quit Game
-    for ( int i = 0; i < 5; i++ ) {
+    // São 3 botões: 0=1 Player, 1=2 Players, 2=Quit Game
+    for ( int i = 0; i < 3; i++ ) {
         Rectangle btnRect = obterRetanguloBotaoMenu( i );
         if ( mouseSobreRect( btnRect ) ) {
             // Efeito hover: destaque pulsante semi-transparente (azul glacial/neon)
@@ -711,12 +719,12 @@ static void drawJogo( GameWorld *gw ) {
         // Ícone do Urso (rosto)
     // --- UI sobreposta (coordenadas de tela) ---
 
-    // Canvas de HUD (Apenas na Fase 1 - Frozen Suburbs)
-    if ( gw->faseAtual == 0 ) {
+    // Canvas de HUD (Todas as Fases)
+    if ( true ) { // gw->faseAtual == 0
         // --- HUD PolarBear (canto superior esquerdo) ---
         Texture2D iconTex = rm.polarbear;
         Rectangle iconSrc  = { 216, 396, 23, 20 };
-        Rectangle iconDest = { 20, 20, 23 * 3.0f, 20 * 3.0f };
+        Rectangle iconDest = { 14, 14, 23 * 2.0f, 20 * 2.0f };
         DrawTexturePro( iconTex, iconSrc, iconDest, (Vector2){0,0}, 0.0f, WHITE );
 
         // Segmentos de vida (corações / caixas divididas)
@@ -787,12 +795,11 @@ static void drawJogo( GameWorld *gw ) {
 
             // Ícone do Belial (canto superior direito do painel)
             Texture2D belialTex = rm.belial;
-            float bIconScale = 2.0f;
-            float bIconW = 23 * bIconScale;
-            float bIconH = 20 * bIconScale;
-            float bIconX = (float)screenW - bIconW - 12.0f;
-            float bIconY = 14.0f;
-            Rectangle bIconSrcFace = { 25, 50, 23, 20 };
+            float bIconW = 47.0f;
+            float bIconH = 44.0f;
+            float bIconX = (float)screenW - bIconW - 14.0f;
+            float bIconY = 12.0f;
+            Rectangle bIconSrcFace = { 350, 51, 47, 44 }; 
             Rectangle bIconDest = { bIconX, bIconY, bIconW, bIconH };
             DrawTexturePro( belialTex, bIconSrcFace, bIconDest, (Vector2){0,0}, 0.0f, WHITE );
 
@@ -1299,7 +1306,16 @@ static Rectangle obterHitboxSocoPolarBear( Jogador *j ) {
     float t = ( feet_y - 220.0f ) / 103.0f;
     float scale = 1.0f + t * 0.25f;
 
-    if ( j->socoAereo || j->socoAereoAterrissou ) {
+    if ( j->socoEspecial ) {
+        // --- HITBOX DO SOCO ESPECIAL ---
+        // A "sentada bruta" afeta a área em volta do urso
+        Rectangle hitbox = j->ret;
+        hitbox.x -= 20.0f;
+        hitbox.width += 40.0f;
+        hitbox.y -= 10.0f;
+        hitbox.height += 20.0f;
+        return hitbox;
+    } else if ( j->socoAereo || j->socoAereoAterrissou ) {
         // --- HITBOX DO SOCO AÉREO ---
         // O soco aéreo agora é uma hitbox de corpo inteiro expandida.
         // Basicamente tudo que encostar no urso na ascendente e descendente toma dano.
@@ -1385,10 +1401,15 @@ static void resolverColisoesFase2( GameWorld *gw ) {
     // ── Soco do Urso Polar acerta EarDog ──
     bool socoAtivoFrame = ( j->socando && j->socandoFrame == 2 ) ||
                           ( j->socoAereo && !j->socoAereoAterrissou );
-    if ( socoAtivoFrame ) {
+    bool especialDano = ( j->socoEspecial && j->socoEspecialFrame == 3 && j->socoEspecialCooldown < 0.1f );
+    if ( socoAtivoFrame || especialDano ) {
         Rectangle hitboxMao = obterHitboxSocoPolarBear( j );
         if ( CheckCollisionRecs( hitboxMao, hitboxEarDog ) ) {
-            earDogReceberDano( ed );
+            if ( especialDano ) {
+                earDogReceberDanoEspecial( ed, 2 );
+            } else {
+                earDogReceberDano( ed );
+            }
         }
     }
 

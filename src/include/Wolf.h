@@ -33,6 +33,7 @@ void desenharWolf( Wolf *w );
  * @brief Aplica dano ao Wolf.
  */
 void wolfReceberDano( Wolf *w );
+void wolfReceberDanoEspecial( Wolf *w, int dano );
 
 /**
  * @brief Retorna o retângulo de hitbox visual do corpo do Wolf.

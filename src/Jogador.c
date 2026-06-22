@@ -63,6 +63,11 @@ Jogador *criarJogador( float x, float y, float w, float h ) {
     novoJogador->socandoTimer = 0.0f;
     novoJogador->socandoCooldown = 0.0f;
 
+    novoJogador->socoEspecial = false;
+    novoJogador->socoEspecialFrame = 0;
+    novoJogador->socoEspecialTimer = 0.0f;
+    novoJogador->socoEspecialCooldown = 0.0f;
+
     novoJogador->socoAereo = false;
     novoJogador->socoAereoAterrissou = false;
     novoJogador->socoAereoCooldown = 0.0f;
@@ -144,11 +149,13 @@ void entradaJogador( Jogador *j, GameWorld *gw, float delta ) {
     bool cimaDown     = IsKeyDown( KEY_W );
     bool baixoDown    = IsKeyDown( KEY_S );
     bool espacoPressed = IsKeyPressed( KEY_SPACE );
+    bool especialPressed = IsKeyPressed( KEY_G );
 
     // Durante o cooldown do soco (frame 3) ou cooldown do soco aereo, o jogador nao pode se mover nem pular
     bool emCooldownSoco = j->socando && j->socandoFrame == 3;
     bool emCooldownAereo = j->socoAereoAterrissou; // cooldown do pouso aereo
-    bool bloqueado = emCooldownSoco || emCooldownAereo;
+    bool emEspecial = j->socoEspecial;
+    bool bloqueado = emCooldownSoco || emCooldownAereo || emEspecial;
 
     if ( !bloqueado ) {
         if ( direitaDown ) {
@@ -238,6 +245,21 @@ void entradaJogador( Jogador *j, GameWorld *gw, float delta ) {
     }
 
 
+
+    // Soco Especial (chao): inicia ao pressionar G estando no chao e sem atacar
+    if ( especialPressed && !j->socando && !j->socoEspecial && !j->socoAereo && !j->socoAereoAterrissou ) {
+        if ( jogadorNoChaoCustom( j, gw->mapa ) && !j->noPulo ) {
+            j->socoEspecial = true;
+            j->socoEspecialFrame = 0;
+            j->socoEspecialTimer = 0.0f;
+            j->socoEspecialCooldown = 0.0f;
+            // Inicia o pulo do ground pound
+            j->noPulo = true;
+            j->puloVel = -400.0f;
+            j->puloY = 0.0f;
+            j->quantidadePulos = 1;
+        }
+    }
 
     if ( !j->noPulo && !jogadorNoChaoCustom( j, gw->mapa ) ) {
         j->estado = ESTADO_JOGADOR_PULANDO; // Queda no buraco/mezanino
@@ -385,7 +407,37 @@ void atualizarJogador( Jogador *j, GameWorld *gw, float delta ) {
     }
 
     // Atualiza a animação do urso polar
-    if ( j->socando ) {
+    if ( j->socoEspecial ) {
+        if ( j->noPulo ) {
+            // No ar
+            if ( j->puloVel < 0.0f ) {
+                // Subindo: alterna entre frame 0 e 1 rápido
+                j->socoEspecialTimer += delta;
+                if ( j->socoEspecialTimer > 0.1f ) {
+                    j->socoEspecialFrame = (j->socoEspecialFrame == 0) ? 1 : 0;
+                    j->socoEspecialTimer = 0.0f;
+                }
+            } else {
+                // Caindo: frame 2 (preparando sentada)
+                j->socoEspecialFrame = 2;
+                // Força extra pra cair mais rápido
+                j->puloVel += 800.0f * delta;
+            }
+        } else {
+            // No chao: frame 3 (impacto)
+            if ( j->socoEspecialFrame < 3 ) {
+                j->socoEspecialFrame = 3;
+                j->socoEspecialCooldown = 0.0f;
+            }
+            j->socoEspecialCooldown += delta;
+            if ( j->socoEspecialCooldown >= 0.7f ) {
+                j->socoEspecial = false;
+                j->socoEspecialFrame = 0;
+                j->socoEspecialTimer = 0.0f;
+                j->socoEspecialCooldown = 0.0f;
+            }
+        }
+    } else if ( j->socando ) {
         // Duracao de cada frame da animacao de soco (em segundos)
         // Sequencia: L2C3 -> L2C2 -> L2C4 -> L2C5(cooldown 0.5s)
         static const float socoDuracao[4] = { 0.08f, 0.08f, 0.12f, 0.5f };
@@ -482,11 +534,22 @@ void desenharJogador( Jogador *j ) {
         { 501, 33, 203, 241 }   // F2 - aterrissagem (cooldown)
     };
 
+    // Frames do ataque especial (sentada bruta)
+    static const Rectangle especial_frames[4] = {
+        { 248, 128, 52, 56 }, // lin1col5
+        { 312, 127, 49, 57 }, // lin1col6
+        { 320, 285, 58, 51 }, // lin3col6
+        { 8, 347, 71, 68 }    // lin4col1
+    };
+
     // Escolhe textura e frame
     Texture2D tex = rm.polarbear;
     Rectangle src;
 
-    if ( j->socoAereo || j->socoAereoAterrissou ) {
+    if ( j->socoEspecial ) {
+        tex = rm.polarbear;
+        src = especial_frames[j->socoEspecialFrame];
+    } else if ( j->socoAereo || j->socoAereoAterrissou ) {
         // Soco aereo: usa fly_attack_polarbear
         tex = rm.fly_attack_polarbear;
         src = j->socoAereoAterrissou ? fly_frames[1] : fly_frames[0];
