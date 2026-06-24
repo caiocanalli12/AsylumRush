@@ -17,6 +17,7 @@ typedef enum EstadoTela {
     TELA_MENU,
     TELA_JOGO,
     TELA_PAUSE,
+    TELA_GAME_OVER
 } EstadoTela;
 
 /**
@@ -352,5 +353,8 @@ typedef struct GameWorld {
     
     float cameraShake;
     float cameraShakeTimer;
+    
+    float gameOverTimer;
+    float gameOverAlpha;
 
 } GameWorld;

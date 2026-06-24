@@ -21,6 +21,7 @@ typedef struct ResourceManager {
     Texture2D wolfDummy;
     Texture2D iceShard;
     Texture2D belial;
+    Texture2D gameoverBg;
 } ResourceManager;
 
 extern ResourceManager rm;

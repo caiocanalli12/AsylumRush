@@ -21,6 +21,7 @@ void loadResourcesResourceManager( void ) {
     rm.wolfDummy = LoadTexture( "resources/imagens/wolf_dummy.png" );
     rm.iceShard = LoadTexture( "resources/imagens/ice_shard.png" );
     rm.belial = LoadTexture( "resources/imagens/belial.png" );
+    rm.gameoverBg = LoadTexture( "resources/imagens/gameover.png" );
     
     // Set bilinear filter to eliminate scaling aliasing/serrilhamento
     SetTextureFilter( rm.menu, TEXTURE_FILTER_BILINEAR );
@@ -40,4 +41,5 @@ void unloadResourcesResourceManager( void ) {
     UnloadTexture( rm.wolfDummy );
     UnloadTexture( rm.iceShard );
     UnloadTexture( rm.belial );
+    UnloadTexture( rm.gameoverBg );
 }

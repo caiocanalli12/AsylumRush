@@ -347,11 +347,13 @@ static void updateJogo( GameWorld *gw, float delta ) {
             }
         }
         
-        // --- Gerenciador de Vidas (Life Manager) - Fase 1 ---
         // PolarBear
-        if ( j->quantidadeVidas <= 0 ) {
-            inicializar( gw );
-            return;
+        if ( j != NULL && j->ativo && j->quantidadeVidas <= 0 ) {
+            j->quantidadeVidas = 0;
+            j->ativo = false;
+            j->respawnTimer = 3.0f;
+            j->ret.x = -999.0f; j->ret.y = -999.0f;
+            j->vel = (Vector2){0, 0};
         }
         // Belial
         if ( gw->modo2Jogadores && b != NULL && b->ativo && b->quantidadeVidas <= 0 ) {
@@ -426,7 +428,9 @@ static void updateJogo( GameWorld *gw, float delta ) {
         bool jMortoDefinitivo = ( j2 == NULL ) || ( !j2->ativo && j2->respawnTimer <= 0.0f && j2->quantidadeVidas <= 0 );
         bool bMortoDefinitivo = !gw->modo2Jogadores || ( b2 == NULL ) || ( !b2->ativo && b2->respawnTimer <= 0.0f && b2->quantidadeVidas <= 0 );
         if ( jMortoDefinitivo && bMortoDefinitivo ) {
-            inicializar( gw );
+            gw->estadoTela = TELA_GAME_OVER;
+            gw->gameOverTimer = 0.0f;
+            gw->gameOverAlpha = 0.0f;
             return;
         }
     }
@@ -516,11 +520,7 @@ static void updateJogo( GameWorld *gw, float delta ) {
             }
         }
         
-        // Vida do jogador zerada na Fase 2 → reinicia a fase
-        if ( j->quantidadeVidas <= 0 ) {
-            ResetBossScene( gw );
-            return;
-        }
+
         
         // EarDog derrotado → O jogo continua para o boss ficar caído morto
         if ( gw->earDog != NULL &&
@@ -568,6 +568,45 @@ static void updatePause( GameWorld *gw ) {
     // O clique no botão "Menu" é tratado no draw
 }
 
+static void updateGameOver( GameWorld *gw ) {
+    gw->gameOverTimer += GetFrameTime();
+    
+    // Efeito de escurecimento / transição
+    if ( gw->gameOverAlpha < 1.0f ) {
+        gw->gameOverAlpha += GetFrameTime() * 0.5f; // Demora 2 segundos para o alpha ir de 0 a 1
+        if ( gw->gameOverAlpha > 1.0f ) gw->gameOverAlpha = 1.0f;
+    }
+
+    // Só permite interação quando a tela escureceu um pouco
+    if ( gw->gameOverAlpha >= 0.5f ) {
+        int screenW = GetScreenWidth();
+        int screenH = GetScreenHeight();
+        
+        int btnW = 300;
+        int btnH = 50;
+        int startX = (screenW - btnW) / 2;
+        int startY = screenH / 2 + 50;
+        
+        Rectangle btnPlayAgain = { startX, startY, btnW, btnH };
+        Rectangle btnMenu = { startX, startY + 60, btnW, btnH };
+        Rectangle btnQuit = { startX, startY + 120, btnW, btnH };
+        
+        if ( mouseSobreRect( btnPlayAgain ) && IsMouseButtonPressed( MOUSE_BUTTON_LEFT ) ) {
+            inicializar( gw );
+            gw->estadoTela = TELA_JOGO;
+        }
+        else if ( mouseSobreRect( btnMenu ) && IsMouseButtonPressed( MOUSE_BUTTON_LEFT ) ) {
+            if ( gw->mapa    != NULL ) { destruirMapa( gw->mapa );       gw->mapa    = NULL; }
+            if ( gw->jogador != NULL ) { destruirJogador( gw->jogador ); gw->jogador = NULL; }
+            if ( gw->earDog  != NULL ) { destruirEarDog( gw->earDog );   gw->earDog  = NULL; }
+            gw->estadoTela = TELA_MENU;
+        }
+        else if ( mouseSobreRect( btnQuit ) && IsMouseButtonPressed( MOUSE_BUTTON_LEFT ) ) {
+            gw->deveSair = true;
+        }
+    }
+}
+
 /**
  * @brief Lê a entrada do usuário e atualiza o estado do jogo.
  */
@@ -581,6 +620,9 @@ void updateGameWorld( GameWorld *gw, float delta ) {
             break;
         case TELA_PAUSE:
             updatePause( gw );
+            break;
+        case TELA_GAME_OVER:
+            updateGameOver( gw );
             break;
     }
 }
@@ -1078,6 +1120,51 @@ static void drawPause( GameWorld *gw ) {
         (Color){ 180, 180, 200, 140 } );
 }
 
+static void drawGameOver( GameWorld *gw ) {
+    // 1. Desenha o jogo pausado no fundo
+    drawJogo( gw );
+    
+    int screenW = GetScreenWidth();
+    int screenH = GetScreenHeight();
+
+    // 2. Fundo escurecendo progressivamente (fade para preto)
+    int bgAlpha = (int)(gw->gameOverAlpha * 200.0f); // Máximo de 200/255 para não ficar 100% preto
+    DrawRectangle(0, 0, screenW, screenH, (Color){ 0, 0, 0, bgAlpha });
+
+    // 3. Desenha a imagem gameover.png
+    if ( rm.gameoverBg.id != 0 ) {
+        int texAlpha = (int)(gw->gameOverAlpha * 255.0f);
+        Rectangle src = { 0, 0, rm.gameoverBg.width, rm.gameoverBg.height };
+        Rectangle dest = { 0, 0, screenW, screenH };
+        DrawTexturePro( rm.gameoverBg, src, dest, (Vector2){0,0}, 0.0f, (Color){ 255, 255, 255, texAlpha } );
+    }
+
+    // 4. Desenha os botões interativos
+    if ( gw->gameOverAlpha >= 0.5f ) {
+        int btnW = 300;
+        int btnH = 50;
+        int startX = (screenW - btnW) / 2;
+        int startY = screenH / 2 + 50;
+        
+        Rectangle btnPlayAgain = { startX, startY, btnW, btnH };
+        Rectangle btnMenu = { startX, startY + 60, btnW, btnH };
+        Rectangle btnQuit = { startX, startY + 120, btnW, btnH };
+        
+        Color corN = (Color){ 30, 30, 30, 200 };
+        Color corH = (Color){ 180, 40, 40, 255 };
+        
+        // Os botões começam a aparecer aos poucos após 50% do fade
+        float btnAlphaRatio = (gw->gameOverAlpha - 0.5f) * 2.0f; 
+        corN.a = (unsigned char)(corN.a * btnAlphaRatio);
+        corH.a = (unsigned char)(corH.a * btnAlphaRatio);
+        Color txtCor = (Color){ 255, 255, 255, (unsigned char)(255 * btnAlphaRatio) };
+
+        desenharBotao( btnPlayAgain, "Jogar Novamente", 24, corN, corH, txtCor );
+        desenharBotao( btnMenu, "Voltar para o Menu", 24, corN, corH, txtCor );
+        desenharBotao( btnQuit, "Sair do Jogo", 24, corN, corH, txtCor );
+    }
+}
+
 /**
  * @brief Desenha o estado do jogo.
  */
@@ -1094,6 +1181,9 @@ void drawGameWorld( GameWorld *gw ) {
             break;
         case TELA_PAUSE:
             drawPause( gw );
+            break;
+        case TELA_GAME_OVER:
+            drawGameOver( gw );
             break;
     }
 
