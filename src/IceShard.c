@@ -49,7 +49,7 @@ IceShard *criarIceShard( float x, float y ) {
     is->floatTimer = (float)(rand() % 100) / 100.0f * PI; // Offset randomico
     
     is->estado = ESTADO_ICESHARD_FLUTUANDO;
-    is->quantidadeVidas = 1.0f; // Morre com 1 soco aereo
+    is->quantidadeVidas = 2.0f; // Morre com 2 socos aereos
     is->invencibilidade = 0.0f;
     
     is->animTimer = 0.0f;
@@ -80,6 +80,22 @@ void iceShardReceberDano( IceShard *is, float playerX ) {
     if ( is->estado == ESTADO_ICESHARD_ABRINDO || is->estado == ESTADO_ICESHARD_ATACANDO ) return;
 
     is->quantidadeVidas--;
+
+    // Knockback proporcional à largura (ret.width * 0.8f é a hitbox aprox)
+    float width = is->ret.width * 0.8f;
+    float forceX = width * 1.5f; 
+    
+    // Determina a direção baseada no jogador
+    if ( is->ret.x > playerX ) {
+        is->base_x += forceX;
+        is->targetX += forceX;
+        is->ret.x += forceX;
+    } else {
+        is->base_x -= forceX;
+        is->targetX -= forceX;
+        is->ret.x -= forceX;
+    }
+
     if ( is->quantidadeVidas <= 0 ) {
         is->quantidadeVidas = 0;
         is->estado = ESTADO_ICESHARD_MORRENDO;
@@ -90,21 +106,6 @@ void iceShardReceberDano( IceShard *is, float playerX ) {
         // Cooldown de 1 segundo para o próximo ataque 
         // O timer dispara em 4.0, então resetamos para 3.0 para faltar exato 1 segundo.
         is->attackTimer = 3.0f;
-        
-        // Knockback proporcional à largura (ret.width * 0.8f é a hitbox aprox)
-        float width = is->ret.width * 0.8f;
-        float forceX = width * 1.5f; 
-        
-        // Determina a direção baseada no jogador
-        if ( is->ret.x > playerX ) {
-            is->base_x += forceX;
-            is->targetX += forceX;
-            is->ret.x += forceX;
-        } else {
-            is->base_x -= forceX;
-            is->targetX -= forceX;
-            is->ret.x -= forceX;
-        }
     }
 }
 
@@ -238,9 +239,9 @@ void desenharIceShard( IceShard *is ) {
     
     // Frames de morte (últimos 3 da row 0)
     Rectangle death_frames[3] = {
-        { 371, 6, 42, 83 },
-        { 428, 6, 27, 83 },
-        { 470, 6, 32, 83 }
+        { 183, 6, 66, 83 },
+        { 263, 6, 48, 83 },
+        { 330, 6, 27, 83 }
     };
 
     Rectangle src;
@@ -263,12 +264,15 @@ void desenharIceShard( IceShard *is ) {
     Rectangle dest = { drawX, drawY, drawW, drawH };
     Vector2 origin = { 0, 0 };
 
-    // Determine tint color (fade out during death)
+    // Determine tint color (fade out during death, reddish during invincibility)
     Color tint = WHITE;
     if (is->estado == ESTADO_ICESHARD_MORRENDO) {
         // Fade out over 3 frames
         unsigned char alpha = (unsigned char)(255 - is->animFrame * 85);
         tint.a = alpha;
+    } else if ( is->invencibilidade > 0.0f ) {
+        // Ficar levemente avermelhado ao tomar dano
+        tint = (Color){ 255, 150, 150, 255 };
     }
 
     bool isHitFlash = false;
@@ -283,7 +287,7 @@ void desenharIceShard( IceShard *is ) {
     DrawTexturePro( tex, src, (Rectangle){ dest.x, dest.y - 2, dest.width, dest.height }, origin, 0.0f, BLACK );
     DrawTexturePro( tex, src, (Rectangle){ dest.x, dest.y + 2, dest.width, dest.height }, origin, 0.0f, BLACK );
 
-    // Draw main sprite with tint (handles fade)
+    // Draw main sprite with tint (handles fade and damage colors)
     DrawTexturePro( tex, src, dest, origin, 0.0f, tint );
     
     // Efeito de blur/brilho branco quando toma dano
