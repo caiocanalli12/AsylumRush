@@ -432,6 +432,17 @@ static void updateJogo( GameWorld *gw, float delta ) {
     }
     
     if ( gw->faseAtual == 1 && gw->earDog != NULL ) {
+        // Trigger intro animation
+        if ( gw->earDog->estado == ESTADO_EARDOG_INATIVO ) {
+            if ( gw->jogador->ret.x > 300.0f ) {
+                gw->cameraShake = 5.0f;
+                gw->cameraShakeTimer = 1.0f;
+                gw->earDog->estado = ESTADO_EARDOG_INTRO_CORRENDO;
+                gw->earDog->vel.x = -200.0f;
+                gw->earDog->olhandoParaDireita = false;
+            }
+        }
+
         atualizarEarDog( gw->earDog, gw, delta );
         resolverColisoesFase2( gw );
         
@@ -1167,6 +1178,21 @@ static void atualizarCamera( GameWorld *gw ) {
             }
         }
     }
+
+    // Aplica o Camera Shake
+    if ( gw->cameraShakeTimer > 0.0f ) {
+        float delta = GetFrameTime();
+        gw->cameraShakeTimer -= delta;
+        if ( gw->cameraShakeTimer <= 0.0f ) {
+            gw->cameraShakeTimer = 0.0f;
+            gw->cameraShake = 0.0f;
+        } else {
+            float dx = ( (float)GetRandomValue( -100, 100 ) / 100.0f ) * gw->cameraShake;
+            float dy = ( (float)GetRandomValue( -100, 100 ) / 100.0f ) * gw->cameraShake;
+            c->target.x += dx;
+            c->target.y += dy;
+        }
+    }
 }
 
 // --- Inicialização e Reinício ---
@@ -1269,9 +1295,9 @@ static void inicializar( GameWorld *gw ) {
             gw->belial = criarBelial( spawnX - 40.0f, spawnY, 20, 30 );
         }
 
-        // Spawn EarDog na Fase 2: mesmo Y que o jogador (mesma profundidade)
+        // Spawn EarDog na Fase 2: offscreen para fazer o intro
         float earDogSpawnY = 220.0f; // alinhado ao jogador
-        gw->earDog = criarEarDog( 600.0f, earDogSpawnY, 44, 27 );
+        gw->earDog = criarEarDog( 900.0f, earDogSpawnY, 44, 27 );
 
         gw->camera = (Camera2D) {
             .offset = { 0 },

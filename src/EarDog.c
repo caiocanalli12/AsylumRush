@@ -119,7 +119,7 @@ EarDog *criarEarDog( float x, float y, float w, float h ) {
     ed->animFrame   = 0;
     ed->puloY       = 0.0f;
     ed->puloVel     = 0.0f;
-    ed->estado      = ESTADO_EARDOG_ANDANDO;
+    ed->estado      = ESTADO_EARDOG_INATIVO;
     ed->stateTimer  = 0.0f;
     ed->decideTimer = 2.0f;
 
@@ -258,6 +258,30 @@ void atualizarEarDog( EarDog *ed, GameWorld *gw, float delta ) {
     float distY  = cyJ - cyE;
     float distAbs = fabsf( distX );
     bool  alvoDireita = ( distX > 0.0f );
+
+    /* ═══════════════ INTRO STATES ═══════════════ */
+    if ( ed->estado == ESTADO_EARDOG_INATIVO ) {
+        return; // Esperando o trigger em GameWorld
+    }
+
+    if ( ed->estado == ESTADO_EARDOG_INTRO_CORRENDO ) {
+        ed->ret.x += ed->vel.x * delta;
+        ed->ret.y += ed->vel.y * delta;
+        
+        ed->animTimer += delta;
+        if ( ed->animTimer >= 0.13f ) { // Mesma velocidade de caminhada
+            ed->animTimer = 0.0f;
+            ed->animFrame = (ed->animFrame + 1) % 6;
+        }
+
+        // Corre até a posição 600.0f ou mais e começa a lutar
+        if ( (ed->vel.x < 0 && ed->ret.x <= 600.0f) || (ed->vel.x > 0 && ed->ret.x >= 600.0f) ) {
+            ed->ret.x = 600.0f;
+            iniciarEstado( ed, ESTADO_EARDOG_ANDANDO, ed->olhandoParaDireita );
+            ed->attackCooldown = 1.0f;
+        }
+        return;
+    }
 
     /* ═══════════════ TOMANDO GOLPE ═══════════════ */
     if ( ed->tomandoGolpe ) {
@@ -478,6 +502,9 @@ void desenharEarDog( EarDog *ed ) {
 
     /* Seleciona strip conforme estado */
     switch ( ed->estado ) {
+
+        case ESTADO_EARDOG_INATIVO:
+            return; // Nao desenha
 
         case ESTADO_EARDOG_MORRENDO: {
             int fi = ed->animFrame < 4 ? ed->animFrame : 3;

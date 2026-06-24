@@ -178,6 +178,8 @@ typedef struct Mapa {
  * @brief Representa o estado do EarDog.
  */
 typedef enum EstadoEarDog {
+    ESTADO_EARDOG_INATIVO,
+    ESTADO_EARDOG_INTRO_CORRENDO,
     ESTADO_EARDOG_PARADO,
     ESTADO_EARDOG_ANDANDO,
     ESTADO_EARDOG_INVESTINDO,    // Dash rapido (lateral, de perfil) em direcao ao jogador
@@ -214,6 +216,10 @@ typedef struct EarDog {
     // Attack and state properties
     float attackCooldown;
     bool hasHitPlayer;
+    
+    // Intro & Bone
+    bool boneOnFloor;
+    Vector2 bonePos;
     
     // Summon properties (atrelado a perda de HP)
     float lastSummonHP;          // HP do boss na ultima vez que invocou minion
@@ -343,5 +349,8 @@ typedef struct GameWorld {
     float menuBgOffset;
     bool modo2Jogadores;
     bool deveSair;
+    
+    float cameraShake;
+    float cameraShakeTimer;
 
 } GameWorld;
