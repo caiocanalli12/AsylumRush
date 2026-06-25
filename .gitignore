@@ -1,2 +1,4 @@
 /build/
 **/*.exe
+ffmpeg.zip
+/ffmpeg-master-latest-win64-gpl/

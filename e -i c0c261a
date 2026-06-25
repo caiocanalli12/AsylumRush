@@ -1,0 +1,31 @@
+[33md567e84[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m Remove obsolete platform documentation and stylesheets; delete unused libvpx presets
+[33m72fa708[m Add ffmpeg.zip correctly with LFS
+[33m5a949e1[m Add ffmpeg.zip using proper LFS tracking
+[33mc0c261a[m Refactor code structure and remove redundant changes for improved clarity and maintainability
+[33m5a87ed3[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m Game Over Parcialmente implementado
+[33m4153b85[m Tela Tremendo na chegada do Boss
+[33m9a620b3[m Ice Shard Death/Damage animation improved
+[33m5dbd048[m Refactor code structure for improved readability and maintainability
+[33m21b99e7[m Correção de merge
+[33mad1e500[m HUD: mover botão de troca de fase para o canto inferior direito
+[33m1350051[m Belial: adicionar dano por wolves, projéteis e sistema de KO/respawn
+[33mc6384e1[m HUD: aplicar visual de segmentos do PolarBear ao Belial
+[33m287c075[m Resolve merge conflict in GameWorld.c
+[33mc194237[m belial added + 2p mode
+[33mb585d83[m Refactor code structure for improved readability and maintainability
+[33m778522a[m feat: Implement IceShard and Wolf enemies with respective functionalities
+[33m3432ace[m 1- EarDog moves updated 2- Early Colisions during polarbear's attack 3 - Life counting
+[33m8df068f[m EarDog Added in Phase 2, basic move set
+[33mb7fd155[m Add image processing scripts for menu background and blocks
+[33m0b4ae35[m 1- Menu simples adicionado (1 botão jogar) 2- Fase 2 adicionada (Precisa arrumar colisão com a parte de baixo da tela) 3 - Pause adicionado (ao apertar "P" o jogo pausa e exibe opções de voltar ao menu ou despausar)
+[33m3e8dfe2[m wolf_dummy added
+[33m1297a21[m werewolf added, mini boss map 1
+[33m3aa5d81[m Add PNG previews for punch frames and punch sequences
+[33ma5ce00b[m feat: Remove unused tile images from resources
+[33m817d10e[m Merge branch 'main' of https://github.com/caiocanalli12/AsylumRush
+[33m9b5fe1f[m feat: Implement various features for player movement and environment interaction
+[33m0398e0e[m IFSP pasta certa
+[33m6148b0d[m IFSP HighSchool png
+[33mdbb895c[m Boss EarDog adicionado
+[33m5c2ca5a[m initial commit
+[33m1986312[m sonic game

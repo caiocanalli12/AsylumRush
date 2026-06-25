@@ -138,6 +138,8 @@ EarDog *criarEarDog( float x, float y, float w, float h ) {
     /* Summon atrelado a HP: começa em 7, dispara a cada 2 HP perdidos */
     ed->lastSummonHP   = 7.0f;
     ed->summonPendente = false;
+    
+    ed->timerLatido = (float)GetRandomValue(500, 700) / 100.0f;
 
     return ed;
 }
@@ -156,6 +158,10 @@ static void iniciarEstado( EarDog *ed, EstadoEarDog novoEstado, bool direcaoDire
     ed->animTimer          = 0.0f;
     ed->animFrame          = 0;
     ed->olhandoParaDireita = direcaoDireita;
+    
+    if ( novoEstado == ESTADO_EARDOG_ATACANDO ) {
+        ed->somAtaqueTocado = false;
+    }
 }
 
 static void clamparArena( EarDog *ed, GameWorld *gw ) {
@@ -229,19 +235,49 @@ void earDogReceberDanoEspecial( EarDog *ed, int dano ) {
    ────────────────────────────────────────────── */
 
 void atualizarEarDog( EarDog *ed, GameWorld *gw, float delta ) {
-    if ( ed == NULL || gw->jogador == NULL ) return;
+    if ( ed == NULL ) return;
 
     Jogador *j = gw->jogador;
+    Belial  *b = gw->belial;
 
-    /* Timers globais */
+    /* --- Determina o jogador ativo mais pr\u00f3ximo (currentPlayer) --- */
+    bool jValido = ( j != NULL && j->ativo && j->ret.x > -1000.0f );
+    bool bValido = ( b != NULL && b->ativo );
+
+    /* Ponteiro gen\u00e9rico para o alvo (cast Belial* -> Jogador* pois os campos s\u00e3o compat\u00edveis) */
+    Jogador *alvo = NULL;
+    if ( jValido && bValido ) {
+        float cxE = ed->ret.x + ed->ret.width / 2.0f;
+        float cxJ = j->ret.x + j->ret.width / 2.0f;
+        float cxB = b->ret.x + b->ret.width / 2.0f;
+        alvo = ( fabsf(cxJ - cxE) <= fabsf(cxB - cxE) ) ? j : (Jogador*)b;
+    } else if ( jValido ) {
+        alvo = j;
+    } else if ( bValido ) {
+        alvo = (Jogador*)b;
+    }
+    if ( alvo == NULL ) return; /* Nenhum jogador ativo */
+
+    /* Pisca vermelho ao tomar dano e reduz invencibilidade */
     if ( ed->invencibilidade > 0.0f ) {
         ed->invencibilidade -= delta;
         if ( ed->invencibilidade < 0.0f ) ed->invencibilidade = 0.0f;
-    }
-    if ( ed->hitFlashTimer > 0.0f ) {
+        
         ed->hitFlashTimer -= delta;
-        if ( ed->hitFlashTimer < 0.0f ) ed->hitFlashTimer = 0.0f;
+        if ( ed->hitFlashTimer < 0.0f ) {
+            ed->hitFlashTimer = 0.1f; // pisca a cada 0.1s
+        }
     }
+
+    /* Ambient SFX: Latido Aleatorio */
+    if ( ed->estado != ESTADO_EARDOG_MORRENDO ) {
+        ed->timerLatido -= delta;
+        if ( ed->timerLatido <= 0.0f ) {
+            PlaySound( rm.sfxLatido );
+            ed->timerLatido = (float)GetRandomValue(500, 700) / 100.0f; // 5.0 a 7.0 segundos
+        }
+    }
+
     if ( ed->attackCooldown > 0.0f ) {
         ed->attackCooldown -= delta;
         if ( ed->attackCooldown < 0.0f ) ed->attackCooldown = 0.0f;
@@ -249,9 +285,9 @@ void atualizarEarDog( EarDog *ed, GameWorld *gw, float delta ) {
 
     ed->stateTimer += delta;
 
-    /* Posição do jogador */
-    float cxJ    = j->ret.x + j->ret.width  / 2.0f;
-    float cyJ    = j->ret.y + j->ret.height;
+    /* Posi\u00e7\u00e3o do jogador ATIVO (din\u00e2mico) */
+    float cxJ    = alvo->ret.x + alvo->ret.width  / 2.0f;
+    float cyJ    = alvo->ret.y + alvo->ret.height;
     float cxE    = ed->ret.x + ed->ret.width  / 2.0f;
     float cyE    = ed->ret.y + ed->ret.height;
     float distX  = cxJ - cxE;
@@ -524,6 +560,10 @@ void desenharEarDog( EarDog *ed ) {
         }
 
         case ESTADO_EARDOG_ATACANDO: {
+            if (!ed->somAtaqueTocado) {
+                PlaySound( rm.sfxEarDogAttack );
+                ed->somAtaqueTocado = true;
+            }
             /* Bote lateral — frames de Running (somente lado esquerdo, de perfil) */
             src = LUNGE_FRAMES[ed->animFrame % 4];
             break;

@@ -1,0 +1,41 @@
+**Contexto Inicial para a IA:**
+Atue como um Designer Gráfico e Redator experiente, especialista na criação de materiais promocionais e press kits para feiras e mostras de jogos indie. 
+
+**O Objetivo:**
+Eu preciso que você crie o texto e a estrutura de layout completa para um documento em formato PDF (um "Brochure" ou Informativo de Mostra) sobre o meu jogo chamado "Asylum Rush". Esse documento será impresso e distribuído/exibido na nossa Mostra de Jogos. 
+
+**Estrutura do Documento Desejada (O que você deve gerar):**
+O documento deve ter um tom empolgante, atraente e direto, chamando a atenção do jogador para experimentar o jogo. Estruture o PDF da seguinte forma:
+
+1. **Capa / Cabeçalho:**
+   - [ESPAÇO PARA IMAGEM: Logo Oficial de "Asylum Rush"]
+   - Um slogan ou frase de efeito (Crie um slogan impactante para um jogo de ação frenética estilo beat 'em up / plataforma 2.5D).
+
+2. **Sobre o Jogo (Sinopse):**
+   - *Resumo do jogo:* "Asylum Rush é um jogo indie de ação eletrizante no estilo beat 'em up em 2.5D, com suporte para cooperativo local de 2 jogadores. O jogo combina combates intensos, combos rápidos e saltos precisos. Os jogadores devem enfrentar hordas de criaturas perigosas e desbravar cenários caóticos, usando golpes normais e ataques especiais aéreos devastadores."
+
+3. **Os Protagonistas:**
+   - [ESPAÇO PARA IMAGEM: Foto dos personagens Polar Bear e Belial juntos]
+   - **Polar Bear:** Um urso polar bípede robusto e implacável. Especialista em força bruta, ele usa seus punhos pesados para esmagar qualquer obstáculo. Seu golpe assinatura é um "Ground Pound" (ataque aéreo) que faz a terra tremer e joga os inimigos longe.
+   - **Belial:** Um demônio ágil e ardiloso com chifres, focado na velocidade e ataques sequenciais. Possui a habilidade única do Pulo Duplo, permitindo maior alcance aéreo, além de desferir socos rápidos e um mergulho aéreo fatal.
+
+4. **Os Inimigos Comuns:**
+   - [ESPAÇO PARA IMAGEM: Foto dos Lobos e do Ice Shard]
+   - **Lobos Mutantes:** Bestas ferozes que caçam em matilha. Eles usam táticas de "hit and run" (bater e correr), recuando após os ataques e evitando armadilhas e buracos de forma inteligente.
+   - **Ice Shards (Fragmentos de Gelo):** Criaturas flutuantes gélidas que assombram os cenários mais altos. Atacam em zigue-zague e exigem que os heróis usem ataques aéreos para derrotá-los.
+
+5. **As Fases (Os Cenários de Batalha):**
+   - [ESPAÇO PARA IMAGEM: Screenshot das Fases]
+   - **Fase 1 - Frozen Suburbs:** Um subúrbio congelado com ruas escorregadias, abismos mortais e um mezanino perigoso. Os jogadores precisam de reflexos rápidos para não cair nos buracos enquanto lutam contra as feras do gelo.
+   - **Fase 2 - IFSP High School:** Uma arena escolar transformada em um campo de batalha intenso. Um espaço menor e sem saída, focado puramente em sobreviver às ondas de inimigos e ao chefe.
+
+6. **O Grande Chefe (Boss Fight):**
+   - [ESPAÇO PARA IMAGEM: Foto do Chefe EarDog]
+   - **Boss: EarDog:** Uma criatura grotesca e gigante com características caninas deturpadas. Ele atua como o guardião da arena escolar. Possui uma barra de vida colossal (que escala quando jogado em modo cooperativo), ataques massivos em área e invoca seus lobos menores para distrair os jogadores. Uma batalha de pura resistência e estratégia!
+
+7. **Rodapé / Contato:**
+   - [ESPAÇO PARA INSERIR: Nomes dos Desenvolvedores]
+   - [ESPAÇO PARA INSERIR: Redes sociais / QR Code para jogar]
+
+**O que eu preciso como resposta:**
+Por favor, reescreva todas as descrições acima com uma linguagem profissional de revista de games (tipo uma matéria promocional). Indique visualmente no seu texto exatamente onde eu devo colar as minhas imagens. O resultado final deve estar pronto para eu diagramar em uma ferramenta de design gráfico (como Canva ou Word) para gerar o PDF.

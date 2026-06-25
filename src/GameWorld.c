@@ -88,6 +88,10 @@ GameWorld *createGameWorld( void ) {
     };
     gw->menuBgOffset = 0.0f;
     gw->deveSair = false;
+    
+    // Inicia a música do Menu / Fase 1
+    PlayMusicStream( rm.bgmFrozen );
+    
     return gw;
 }
 
@@ -424,26 +428,30 @@ static void updateJogo( GameWorld *gw, float delta ) {
         }
 
         // --- Game Over Colaborativo ---
-        // Só reinicia quando AMBOS os jogadores estão mortos definitivamente
-        bool jMortoDefinitivo = ( j2 == NULL ) || ( !j2->ativo && j2->respawnTimer <= 0.0f && j2->quantidadeVidas <= 0 );
-        bool bMortoDefinitivo = !gw->modo2Jogadores || ( b2 == NULL ) || ( !b2->ativo && b2->respawnTimer <= 0.0f && b2->quantidadeVidas <= 0 );
+        // Só reinicia quando AMBOS os jogadores estão mortos
+        bool jMortoDefinitivo = ( j2 == NULL ) || ( j2->quantidadeVidas <= 0 );
+        bool bMortoDefinitivo = !gw->modo2Jogadores || ( b2 == NULL ) || ( b2->quantidadeVidas <= 0 );
         if ( jMortoDefinitivo && bMortoDefinitivo ) {
-            gw->estadoTela = TELA_GAME_OVER;
-            gw->gameOverTimer = 0.0f;
-            gw->gameOverAlpha = 0.0f;
-            return;
+            if ( gw->estadoTela != TELA_GAME_OVER ) {
+                gw->estadoTela = TELA_GAME_OVER;
+                gw->gameOverTimer = 0.0f;
+                gw->gameOverAlpha = 0.5f; // Botoes aparecem imediatamente
+            }
         }
     }
     
     if ( gw->faseAtual == 1 && gw->earDog != NULL ) {
         // Trigger intro animation
         if ( gw->earDog->estado == ESTADO_EARDOG_INATIVO ) {
-            if ( gw->jogador->ret.x > 300.0f ) {
+            bool jCruzou = ( gw->jogador != NULL && gw->jogador->ativo && gw->jogador->ret.x > 300.0f );
+            bool bCruzou = ( gw->belial != NULL && gw->belial->ativo && gw->belial->ret.x > 300.0f );
+            if ( jCruzou || bCruzou ) {
                 gw->cameraShake = 5.0f;
                 gw->cameraShakeTimer = 1.0f;
                 gw->earDog->estado = ESTADO_EARDOG_INTRO_CORRENDO;
                 gw->earDog->vel.x = -200.0f;
                 gw->earDog->olhandoParaDireita = false;
+                PlaySound( rm.sfxEarDogSpawn );
             }
         }
 
@@ -456,8 +464,8 @@ static void updateJogo( GameWorld *gw, float delta ) {
             
             // Encontra 1 slot livre para o lobo minion
             float mapW = (float)gw->mapa->colunas;
-            float spawnY = gw->jogador->ret.y + gw->jogador->ret.height / 2.0f - 10.0f;
-            float spawnPosition = 20.0f; // Pode spawnar na esquerda ou onde for melhor
+            float spawnY = 180.0f - 10.0f; // Alinhado com bossFloorY
+            float spawnPosition = 20.0f;
             
             for ( int i = 0; i < MAX_WOLVES; i++ ) {
                 if ( gw->wolves[i] == NULL || !gw->wolves[i]->ativo ) {
@@ -474,41 +482,78 @@ static void updateJogo( GameWorld *gw, float delta ) {
         
         // Colisoes Minions na fase 2 (lobos convocados)
         Jogador *j2 = gw->jogador;
+        Belial *b2 = gw->belial;
         for ( int i = 0; i < gw->numWolves; i++ ) {
             Wolf *w = gw->wolves[i];
             if ( w != NULL ) {
                 atualizarWolf( w, gw, delta );
             }
             if ( w != NULL && w->ativo && w->estado != ESTADO_WOLF_MORRENDO ) {
-                bool socoDano = ( j2->socando && j2->socandoFrame == 2 ) ||
-                                ( j2->socoAereo && !j2->socoAereoAterrissou );
-                bool especialDano = ( j2->socoEspecial && j2->socoEspecialFrame == 3 && j2->socoEspecialCooldown < 0.1f );
-                if ( socoDano || especialDano ) {
-                    Rectangle hitboxMao = obterHitboxSocoPolarBear( j2 );
-                    Rectangle corpoW    = wolfObterHitboxCorpo( w );
-                    if ( CheckCollisionRecs( hitboxMao, corpoW ) ) {
-                        if ( especialDano ) {
-                            wolfReceberDanoEspecial( w, 2 );
-                        } else {
-                            wolfReceberDano( w );
-                        }
-                        if ( w->estado == ESTADO_WOLF_MORRENDO ) {
-                            j2->quantidadeVidas += 0.5f;
-                            if ( j2->quantidadeVidas > j2->maxVidas ) j2->quantidadeVidas = j2->maxVidas;
+                // PolarBear acerta o lobo
+                if ( j2 != NULL && j2->ativo ) {
+                    bool socoDano = ( j2->socando && j2->socandoFrame == 2 ) ||
+                                    ( j2->socoAereo && !j2->socoAereoAterrissou );
+                    bool especialDano = ( j2->socoEspecial && j2->socoEspecialFrame == 3 && j2->socoEspecialCooldown < 0.1f );
+                    if ( socoDano || especialDano ) {
+                        Rectangle hitboxMao = obterHitboxSocoPolarBear( j2 );
+                        Rectangle corpoW    = wolfObterHitboxCorpo( w );
+                        if ( CheckCollisionRecs( hitboxMao, corpoW ) ) {
+                            if ( especialDano ) {
+                                wolfReceberDanoEspecial( w, 2 );
+                            } else {
+                                wolfReceberDano( w );
+                            }
+                            if ( w->estado == ESTADO_WOLF_MORRENDO ) {
+                                j2->quantidadeVidas += 0.5f;
+                                if ( j2->quantidadeVidas > j2->maxVidas ) j2->quantidadeVidas = j2->maxVidas;
+                            }
                         }
                     }
                 }
+                
+                // Belial acerta o lobo
+                if ( b2 != NULL && b2->ativo ) {
+                    bool socoDanoB = ( b2->socando && b2->socandoFrame == 2 ) ||
+                                     ( b2->socoAereo && !b2->socoAereoAterrissou );
+                    if ( socoDanoB ) {
+                        Rectangle hitboxMaoB = obterHitboxSocoPolarBear( (Jogador*)b2 );
+                        Rectangle corpoW = wolfObterHitboxCorpo( w );
+                        if ( CheckCollisionRecs( hitboxMaoB, corpoW ) ) {
+                            wolfReceberDano( w );
+                        }
+                    }
+                }
+
+                // Lobo ataca jogadores
                 if ( w->estado == ESTADO_WOLF_ATACANDO && !w->hasHitPlayer ) {
                     Rectangle ataqueW = wolfObterHitboxAtaque( w );
-                    Rectangle visualJ = obterHitboxVisualJogador( j2 );
-                    if ( CheckCollisionRecs( ataqueW, visualJ ) ) {
-                        float depthW = w->ret.y + w->ret.height;
-                        float depthJ = j2->ret.y + j2->ret.height;
-                        if ( fabsf(depthW - depthJ) < 60.0f ) {
-                            if ( j2->invencibilidade <= 0.0f ) {
-                                j2->quantidadeVidas -= 0.5f;
-                                j2->invencibilidade = 1.5f;
-                                w->hasHitPlayer = true;
+                    // PolarBear
+                    if ( j2 != NULL && j2->ativo ) {
+                        Rectangle visualJ = obterHitboxVisualJogador( j2 );
+                        if ( CheckCollisionRecs( ataqueW, visualJ ) ) {
+                            float depthW = w->ret.y + w->ret.height;
+                            float depthJ = j2->ret.y + j2->ret.height;
+                            if ( fabsf(depthW - depthJ) < 60.0f ) {
+                                if ( j2->invencibilidade <= 0.0f ) {
+                                    j2->quantidadeVidas -= 0.5f;
+                                    j2->invencibilidade = 1.5f;
+                                    w->hasHitPlayer = true;
+                                }
+                            }
+                        }
+                    }
+                    // Belial
+                    if ( !w->hasHitPlayer && b2 != NULL && b2->ativo ) {
+                        Rectangle visualB = obterHitboxVisualJogador( (Jogador*)b2 );
+                        if ( CheckCollisionRecs( ataqueW, visualB ) ) {
+                            float depthW = w->ret.y + w->ret.height;
+                            float depthB = b2->ret.y + b2->ret.height;
+                            if ( fabsf(depthW - depthB) < 60.0f ) {
+                                if ( b2->invencibilidade <= 0.0f ) {
+                                    b2->quantidadeVidas--;
+                                    b2->invencibilidade = 1.5f;
+                                    w->hasHitPlayer = true;
+                                }
                             }
                         }
                     }
@@ -530,6 +575,21 @@ static void updateJogo( GameWorld *gw, float delta ) {
             // A fase não deve reiniciar, ele deve ficar caído morto lá.
             // Spawns já estão inibidos.
         }
+        
+        // --- Nivelamento do Chao (Level Design - Boss Fight) ---
+        float bossFloorY = 180.0f;
+        if ( gw->jogador != NULL ) {
+            gw->jogador->ret.y = bossFloorY - gw->jogador->ret.height;
+            gw->jogador->vel.y = 0.0f;
+        }
+        if ( gw->belial != NULL && gw->belial->ativo ) {
+            gw->belial->ret.y = bossFloorY - gw->belial->ret.height;
+            gw->belial->vel.y = 0.0f;
+        }
+        if ( gw->earDog != NULL ) {
+            gw->earDog->ret.y = bossFloorY - gw->earDog->ret.height;
+            gw->earDog->vel.y = 0.0f;
+        }
     }
     atualizarCamera( gw );
 
@@ -548,14 +608,12 @@ static void updateJogo( GameWorld *gw, float delta ) {
             if ( jc->ret.x < leftB ) { jc->ret.x = leftB; jc->vel.x = 0; }
             if ( jc->ret.x + jc->ret.width > rightB ) { jc->ret.x = rightB - jc->ret.width; jc->vel.x = 0; }
             if ( jc->ret.y < topB ) { jc->ret.y = topB; jc->vel.y = 0; }
-            if ( jc->ret.y + jc->ret.height > botB ) { jc->ret.y = botB - jc->ret.height; jc->vel.y = 0; }
         }
         Belial *bc = gw->belial;
         if ( bc != NULL && bc->ativo ) {
             if ( bc->ret.x < leftB ) { bc->ret.x = leftB; bc->vel.x = 0; }
             if ( bc->ret.x + bc->ret.width > rightB ) { bc->ret.x = rightB - bc->ret.width; bc->vel.x = 0; }
             if ( bc->ret.y < topB ) { bc->ret.y = topB; bc->vel.y = 0; }
-            if ( bc->ret.y + bc->ret.height > botB ) { bc->ret.y = botB - bc->ret.height; bc->vel.y = 0; }
         }
     }
 }
@@ -611,6 +669,9 @@ static void updateGameOver( GameWorld *gw ) {
  * @brief Lê a entrada do usuário e atualiza o estado do jogo.
  */
 void updateGameWorld( GameWorld *gw, float delta ) {
+    UpdateMusicStream(rm.bgmFrozen);
+    UpdateMusicStream(rm.bgmBoss);
+    
     switch ( gw->estadoTela ) {
         case TELA_MENU:
             updateMenu( gw );
@@ -622,6 +683,7 @@ void updateGameWorld( GameWorld *gw, float delta ) {
             updatePause( gw );
             break;
         case TELA_GAME_OVER:
+            updateJogo( gw, delta ); // Keep background running for death animations
             updateGameOver( gw );
             break;
     }
@@ -950,7 +1012,7 @@ static void drawJogo( GameWorld *gw ) {
 
     // ─── Boss Health Bar — EarDog (Fase 2) ───
     if ( gw->faseAtual == 1 && gw->earDog != NULL ) {
-        int maxVidas = 7;
+        int maxVidas = gw->modo2Jogadores ? 14 : 7;
         float vidas = gw->earDog->quantidadeVidas;
         if ( vidas < 0.0f ) vidas = 0.0f;
 
@@ -990,7 +1052,7 @@ static void drawJogo( GameWorld *gw ) {
 
         // Número de vidas restantes (pequeno, à direita)
         char vidasTxt[16];
-        sprintf( vidasTxt, "%g/7", vidas );
+        sprintf( vidasTxt, "%g/%d", vidas, maxVidas );
         int vidasW = MeasureText( vidasTxt, 13 );
         DrawText( vidasTxt, barX + barW - vidasW - 4, barY + 4, 13, (Color){255,255,255,200} );
 
@@ -1330,6 +1392,10 @@ static void inicializar( GameWorld *gw ) {
 
     if ( gw->faseAtual == 0 ) {
         // Fase 1: Frozen Suburbs
+        if ( !IsMusicStreamPlaying(rm.bgmFrozen) ) {
+            StopMusicStream(rm.bgmBoss);
+            PlayMusicStream(rm.bgmFrozen);
+        }
         gw->mapa = carregarMapa( "resources/mapas/mapa_modelo.txt" );
 
         float spawnX = 150.0f;
@@ -1367,10 +1433,14 @@ static void inicializar( GameWorld *gw ) {
         gw->iceShards[5] = criarIceShard( 5600.0f, 130.0f );
         gw->iceShards[6] = criarIceShard( 6700.0f, 130.0f );
         gw->iceShards[7] = criarIceShard( 7700.0f, 130.0f );
-        gw->numIceShards = 8;
+        gw->numIceShards = 4;
         
     } else {
         // Fase 2: IFSP High School (Boss Fight) - mapa menor
+        if ( !IsMusicStreamPlaying(rm.bgmBoss) ) {
+            StopMusicStream(rm.bgmFrozen);
+            PlayMusicStream(rm.bgmBoss);
+        }
         gw->mapa = carregarMapa( "resources/mapas/mapa_modelo.txt" );
 
         // Ajusta o mapa para as dimensões da imagem IFSP
@@ -1378,16 +1448,20 @@ static void inicializar( GameWorld *gw ) {
         gw->mapa->colunas = rm.ifsp_highschool.width;   // 909
 
         float alturaFase = (float)rm.ifsp_highschool.height;
+        float bossFloorY = 180.0f;
         float spawnX = 100.0f;
-        float spawnY = 220.0f; // meio do chão - altura do jogador
-        gw->jogador = criarJogador( spawnX, spawnY, 20, 30 );
+        
+        gw->jogador = criarJogador( spawnX, bossFloorY - 30.0f, 20, 30 );
         if ( gw->modo2Jogadores ) {
-            gw->belial = criarBelial( spawnX - 40.0f, spawnY, 20, 30 );
+            gw->belial = criarBelial( spawnX - 40.0f, bossFloorY - 30.0f, 20, 30 );
         }
 
         // Spawn EarDog na Fase 2: offscreen para fazer o intro
-        float earDogSpawnY = 220.0f; // alinhado ao jogador
-        gw->earDog = criarEarDog( 900.0f, earDogSpawnY, 44, 27 );
+        gw->earDog = criarEarDog( 900.0f, bossFloorY - 27.0f, 44, 27 );
+        if ( gw->modo2Jogadores ) {
+            gw->earDog->quantidadeVidas = 14.0f;
+            gw->earDog->lastSummonHP = 14.0f;
+        }
 
         gw->camera = (Camera2D) {
             .offset = { 0 },
@@ -1489,48 +1563,68 @@ static void resolverColisoesFase2( GameWorld *gw ) {
     Jogador *j = gw->jogador;
     Belial *b = gw->belial;
     EarDog *ed = gw->earDog;
-    if ( j == NULL || ed == NULL ) return;
-    if ( ed->estado == ESTADO_EARDOG_MORRENDO ) return;
     if ( ed == NULL ) return;
+    if ( ed->estado == ESTADO_EARDOG_MORRENDO ) return;
 
     Rectangle hitboxEarDog = earDogObterHitbox( ed );
 
-    // ── EarDog ataca jogador (dash ou salto) ──
+    // ── EarDog ataca jogadores (dash ou investida) ──
     Rectangle ataqueEarDog = earDogObterHitboxAtaque( ed );
     bool hitboxAtivaEarDog = ( ataqueEarDog.width > 0.0f );
     if ( hitboxAtivaEarDog && !ed->hasHitPlayer ) {
-        Rectangle visualJ = obterHitboxVisualJogador( j );
-        if ( CheckCollisionRecs( ataqueEarDog, visualJ ) ) {
-            float depthE = ed->ret.y + ed->ret.height;
-            float depthJ = j->ret.y + j->ret.height;
-            if ( fabsf(depthE - depthJ) < 70.0f ) {
-                if ( j->invencibilidade <= 0.0f ) {
-                    j->quantidadeVidas -= 0.5f;
-                    if ( j->quantidadeVidas < 0.0f ) j->quantidadeVidas = 0.0f;
-                    j->invencibilidade = 1.5f;
+        // Checa contra PolarBear
+        if ( j != NULL && j->ativo ) {
+            Rectangle visualJ = obterHitboxVisualJogador( j );
+            if ( CheckCollisionRecs( ataqueEarDog, visualJ ) ) {
+                float depthE = ed->ret.y + ed->ret.height;
+                float depthJ = j->ret.y + j->ret.height;
+                if ( fabsf(depthE - depthJ) < 70.0f ) {
+                    if ( j->invencibilidade <= 0.0f ) {
+                        j->quantidadeVidas -= 0.5f;
+                        if ( j->quantidadeVidas < 0.0f ) j->quantidadeVidas = 0.0f;
+                        j->invencibilidade = 1.5f;
+                    }
+                    ed->hasHitPlayer = true;
                 }
-                ed->hasHitPlayer = true;
+            }
+        }
+        // Checa contra Belial
+        if ( !ed->hasHitPlayer && b != NULL && b->ativo ) {
+            Rectangle visualB = obterHitboxVisualJogador( (Jogador*)b );
+            if ( CheckCollisionRecs( ataqueEarDog, visualB ) ) {
+                float depthE = ed->ret.y + ed->ret.height;
+                float depthB = b->ret.y + b->ret.height;
+                if ( fabsf(depthE - depthB) < 70.0f ) {
+                    if ( b->invencibilidade <= 0.0f ) {
+                        b->quantidadeVidas--;
+                        if ( b->quantidadeVidas < 0 ) b->quantidadeVidas = 0;
+                        b->invencibilidade = 1.5f;
+                    }
+                    ed->hasHitPlayer = true;
+                }
             }
         }
     }
 
     // ── Soco do Urso Polar acerta EarDog ──
-    bool socoAtivoFrame = ( j->socando && j->socandoFrame == 2 ) ||
-                          ( j->socoAereo && !j->socoAereoAterrissou );
-    bool especialDano = ( j->socoEspecial && j->socoEspecialFrame == 3 && j->socoEspecialCooldown < 0.1f );
-    if ( socoAtivoFrame || especialDano ) {
-        Rectangle hitboxMao = obterHitboxSocoPolarBear( j );
-        if ( CheckCollisionRecs( hitboxMao, hitboxEarDog ) ) {
-            if ( especialDano ) {
-                earDogReceberDanoEspecial( ed, 2 );
-            } else {
-                earDogReceberDano( ed );
+    if ( j != NULL && j->ativo ) {
+        bool socoAtivoFrame = ( j->socando && j->socandoFrame == 2 ) ||
+                              ( j->socoAereo && !j->socoAereoAterrissou );
+        bool especialDano = ( j->socoEspecial && j->socoEspecialFrame == 3 && j->socoEspecialCooldown < 0.1f );
+        if ( socoAtivoFrame || especialDano ) {
+            Rectangle hitboxMao = obterHitboxSocoPolarBear( j );
+            if ( CheckCollisionRecs( hitboxMao, hitboxEarDog ) ) {
+                if ( especialDano ) {
+                    earDogReceberDanoEspecial( ed, 2 );
+                } else {
+                    earDogReceberDano( ed );
+                }
             }
         }
     }
 
     // ── Belial acerta EarDog ──
-    if ( gw->modo2Jogadores && b != NULL && b->ativo ) {
+    if ( b != NULL && b->ativo ) {
         bool socoAtivoFrameB = ( b->socando && b->socandoFrame == 2 ) ||
                                ( b->socoAereo && !b->socoAereoAterrissou );
         if ( socoAtivoFrameB ) {

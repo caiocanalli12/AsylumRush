@@ -22,6 +22,19 @@ typedef struct ResourceManager {
     Texture2D iceShard;
     Texture2D belial;
     Texture2D gameoverBg;
+    
+    // Audios
+    Music bgmFrozen;
+    Music bgmBoss;
+    Sound sfxHit;
+    Sound sfxEspecial;
+    Sound sfxIceShardDeath;
+    Sound sfxIceShardHit;
+    Sound sfxEarDogSpawn;
+    Sound sfxEarDogAttack;
+    Sound sfxWolfAttack;
+    Sound sfxLatido;
+    Sound sfxBelialJump;
 } ResourceManager;
 
 extern ResourceManager rm;

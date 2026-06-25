@@ -212,6 +212,7 @@ void entradaBelial( Belial *b, GameWorld *gw, float delta ) {
             } else if ( b->noPulo && b->quantidadePulos < b->quantidadeMaxPulos ) {
                 b->puloVel = -350.0f;
                 b->quantidadePulos++;
+                PlaySound( rm.sfxBelialJump );
             }
         }
     } else {
@@ -238,10 +239,12 @@ void entradaBelial( Belial *b, GameWorld *gw, float delta ) {
             b->socandoFrame = 0;
             b->socandoTimer = 0.0f;
             b->socandoCooldown = 0.0f;
+            b->somSocoTocado = false;
         } else if ( b->noPulo ) {
             b->socoAereo = true;
             b->socoAereoAterrissou = false;
             b->socoAereoCooldown = 0.0f;
+            b->somSocoTocado = false;
         }
     }
 
@@ -363,7 +366,7 @@ void atualizarBelial( Belial *b, GameWorld *gw, float delta ) {
     // Queda do mapa: inicia knocked-out (respawn em 15 s)
     float limiteQueda = calcularAlturaMapa( gw->mapa );
     if ( b->ret.y > limiteQueda ) {
-        b->quantidadeVidas--;
+        b->quantidadeVidas = 0; // Perde todas as vidas ao cair no buraco
         b->ativo = false;
         if ( b->quantidadeVidas <= 0 ) {
             b->quantidadeVidas = 0;
@@ -382,6 +385,10 @@ void atualizarBelial( Belial *b, GameWorld *gw, float delta ) {
 
     // Atualização de Animação
     if ( b->socando ) {
+        if (!b->somSocoTocado) {
+            PlaySound( rm.sfxHit );
+            b->somSocoTocado = true;
+        }
         static const float socoDuracao[4] = { 0.08f, 0.08f, 0.12f, 0.5f };
 
         if ( b->socandoFrame < 3 ) {
@@ -415,6 +422,11 @@ void atualizarBelial( Belial *b, GameWorld *gw, float delta ) {
 
     // Ataque aéreo
     if ( b->socoAereo && !b->socoAereoAterrissou ) {
+        if (!b->somSocoTocado) {
+            PlaySound( rm.sfxHit );
+            b->somSocoTocado = true;
+        }
+        
         if ( !b->noPulo && belialNoChaoCustom( b, gw->mapa ) ) {
             b->socoAereoAterrissou = true;
             b->socoAereoCooldown = 0.0f;

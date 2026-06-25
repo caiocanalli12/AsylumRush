@@ -236,11 +236,13 @@ void entradaJogador( Jogador *j, GameWorld *gw, float delta ) {
             j->socandoFrame = 0;
             j->socandoTimer = 0.0f;
             j->socandoCooldown = 0.0f;
+            j->somSocoTocado = false;
         } else if ( j->noPulo ) {
             // Soco aereo
             j->socoAereo = true;
             j->socoAereoAterrissou = false;
             j->socoAereoCooldown = 0.0f;
+            j->somSocoTocado = false;
         }
     }
 
@@ -253,6 +255,7 @@ void entradaJogador( Jogador *j, GameWorld *gw, float delta ) {
             j->socoEspecialFrame = 0;
             j->socoEspecialTimer = 0.0f;
             j->socoEspecialCooldown = 0.0f;
+            j->somEspecialTocado = false;
             // Inicia o pulo do ground pound
             j->noPulo = true;
             j->puloVel = -400.0f;
@@ -287,6 +290,14 @@ void atualizarJogador( Jogador *j, GameWorld *gw, float delta ) {
     // Eixo X: Move horizontalmente e resolve colisões do mapa
     j->ret.x += j->vel.x * delta;
     resolverColisaoJogadorObstaculosMapaX( j, gw->mapa );
+
+    // Lógica Soco Aéreo
+    if ( j->socoAereo && !j->socoAereoAterrissou ) {
+        if (!j->somSocoTocado) {
+            PlaySound( rm.sfxHit );
+            j->somSocoTocado = true;
+        }
+    }
 
     // Clamp horizontal (eixo X) para impedir passar dos cantos esquerdo/direito da fase
     float max_x = (float)calcularLarguraMapa( gw->mapa );
@@ -388,7 +399,7 @@ void atualizarJogador( Jogador *j, GameWorld *gw, float delta ) {
     // Se o jogador cair do mapa, inicia o estado knocked-out (respawn em 15 s)
     float limiteQueda = calcularAlturaMapa( gw->mapa );
     if ( j->ret.y > limiteQueda ) {
-        j->quantidadeVidas--;
+        j->quantidadeVidas = 0; // Perde todas as vidas ao cair no buraco
         j->ativo = false;
         if ( j->quantidadeVidas <= 0 ) {
             j->quantidadeVidas = 0;
@@ -428,6 +439,10 @@ void atualizarJogador( Jogador *j, GameWorld *gw, float delta ) {
             if ( j->socoEspecialFrame < 3 ) {
                 j->socoEspecialFrame = 3;
                 j->socoEspecialCooldown = 0.0f;
+                if (!j->somEspecialTocado) {
+                    PlaySound( rm.sfxEspecial );
+                    j->somEspecialTocado = true;
+                }
             }
             j->socoEspecialCooldown += delta;
             if ( j->socoEspecialCooldown >= 0.7f ) {
@@ -438,6 +453,10 @@ void atualizarJogador( Jogador *j, GameWorld *gw, float delta ) {
             }
         }
     } else if ( j->socando ) {
+        if (!j->somSocoTocado) {
+            PlaySound( rm.sfxHit );
+            j->somSocoTocado = true;
+        }
         // Duracao de cada frame da animacao de soco (em segundos)
         // Sequencia: L2C3 -> L2C2 -> L2C4 -> L2C5(cooldown 0.5s)
         static const float socoDuracao[4] = { 0.08f, 0.08f, 0.12f, 0.5f };

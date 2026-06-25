@@ -69,17 +69,20 @@ typedef struct Jogador {
     int socandoFrame;      // frame atual da sequencia (0-3)
     float socandoTimer;    // tempo acumulado no frame atual
     float socandoCooldown; // tempo restante de cooldown no frame final
+    bool somSocoTocado;
 
     // Soco Especial (tecla R)
     bool socoEspecial;
     int socoEspecialFrame;
     float socoEspecialTimer;
     float socoEspecialCooldown;
+    bool somEspecialTocado;
 
     // Soco aereo (no ar)
     bool socoAereo;           // true: soco aereo ativo (F pressionado no ar)
     bool socoAereoAterrissou; // true: ja pousou, exibindo frame de pouso
     float socoAereoCooldown;  // tempo de cooldown apos aterrissar (0.5s)
+    bool somAereoTocado;
 
     // Dano corpo-a-corpo
     float invencibilidade;    // cooldown de invencibilidade apos tomar dano de contato (1.5s)
@@ -128,11 +131,13 @@ typedef struct Belial {
     int socandoFrame;      // frame atual da sequencia (0-3)
     float socandoTimer;    // tempo acumulado no frame atual
     float socandoCooldown; // tempo restante de cooldown no frame final
+    bool somSocoTocado;
 
     // Soco aereo (no ar) / Tromba aerea
     bool socoAereo;           // true: soco aereo ativo (Ç pressionado no ar)
     bool socoAereoAterrissou; // true: ja pousou, exibindo frame de pouso
     float socoAereoCooldown;  // tempo de cooldown apos aterrissar (0.5s)
+    bool somAereoTocado;
 
     // Dano corpo-a-corpo
     float invencibilidade;    // cooldown de invencibilidade apos tomar dano de contato (1.5s)
@@ -225,6 +230,11 @@ typedef struct EarDog {
     // Summon properties (atrelado a perda de HP)
     float lastSummonHP;          // HP do boss na ultima vez que invocou minion
     bool summonPendente;       // True quando vai invocar minions ao fim do latido
+    
+    // SFX
+    float timerLatido;
+    bool somAtaqueTocado;
+    bool somLatidoTocado;
 } EarDog;
 
 /**
@@ -247,6 +257,7 @@ typedef struct Wolf {
     bool olhandoParaDireita;
     float animTimer;
     int animFrame;
+    bool somAtaqueTocado;
     
     float puloY;
     float puloVel;
@@ -303,6 +314,7 @@ typedef struct IceShard {
     float currentAimAngle;
     
     bool ativo;
+    bool somMorteTocado;
 } IceShard;
 
 /**

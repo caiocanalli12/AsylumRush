@@ -23,6 +23,19 @@ void loadResourcesResourceManager( void ) {
     rm.belial = LoadTexture( "resources/imagens/belial.png" );
     rm.gameoverBg = LoadTexture( "resources/imagens/gameover.png" );
     
+    // Audios
+    rm.bgmFrozen = LoadMusicStream( "resources/audios/frozensuburbs.mp3" );
+    rm.bgmBoss = LoadMusicStream( "resources/audios/bossfight.wav" );
+    rm.sfxHit = LoadSound( "resources/audios/hit.wav" );
+    rm.sfxEspecial = LoadSound( "resources/audios/especial_polarbear.wav" );
+    rm.sfxIceShardDeath = LoadSound( "resources/audios/iceshard_death.wav" );
+    rm.sfxIceShardHit = LoadSound( "resources/audios/iceshard_hit.wav" );
+    rm.sfxEarDogSpawn = LoadSound( "resources/audios/eardog.wav" );
+    rm.sfxEarDogAttack = LoadSound( "resources/audios/eardog_atack.wav" );
+    rm.sfxWolfAttack = LoadSound( "resources/audios/wolf_atack.wav" );
+    rm.sfxLatido = LoadSound( "resources/audios/latido.wav" );
+    rm.sfxBelialJump = LoadSound( "resources/audios/belial_jump.wav" );
+    
     // Set bilinear filter to eliminate scaling aliasing/serrilhamento
     SetTextureFilter( rm.menu, TEXTURE_FILTER_BILINEAR );
     SetTextureFilter( rm.frozensuburbs_blurred, TEXTURE_FILTER_BILINEAR );
@@ -42,4 +55,16 @@ void unloadResourcesResourceManager( void ) {
     UnloadTexture( rm.iceShard );
     UnloadTexture( rm.belial );
     UnloadTexture( rm.gameoverBg );
+    
+    // Unload Audios
+    UnloadMusicStream( rm.bgmFrozen );
+    UnloadMusicStream( rm.bgmBoss );
+    UnloadSound( rm.sfxHit );
+    UnloadSound( rm.sfxEspecial );
+    UnloadSound( rm.sfxIceShardDeath );
+    UnloadSound( rm.sfxIceShardHit );
+    UnloadSound( rm.sfxEarDogSpawn );
+    UnloadSound( rm.sfxEarDogAttack );
+    UnloadSound( rm.sfxWolfAttack );
+    UnloadSound( rm.sfxLatido );
 }

@@ -97,10 +97,10 @@ void iceShardReceberDano( IceShard *is, float playerX ) {
     }
 
     if ( is->quantidadeVidas <= 0 ) {
-        is->quantidadeVidas = 0;
         is->estado = ESTADO_ICESHARD_MORRENDO;
         is->animFrame = 0;
         is->animTimer = 0.0f;
+        is->somMorteTocado = false;
     } else {
         is->invencibilidade = 0.5f;
         // Cooldown de 1 segundo para o próximo ataque 
@@ -113,7 +113,7 @@ static Jogador *obterAlvoProximoIceShard( IceShard *is, GameWorld *gw ) {
     Jogador *j = gw->jogador;
     Belial *b = gw->belial;
     bool jValido = ( j != NULL && j->ativo );
-    bool bValido = ( gw->modo2Jogadores && b != NULL && b->ativo );
+    bool bValido = ( b != NULL && b->ativo );
 
     if ( jValido && bValido ) {
         float cxIS = is->ret.x + is->ret.width / 2.0f;
@@ -141,6 +141,10 @@ void atualizarIceShard( IceShard *is, GameWorld *gw, float delta ) {
     }
 
     if ( is->estado == ESTADO_ICESHARD_MORRENDO ) {
+        if (!is->somMorteTocado) {
+            PlaySound( rm.sfxIceShardDeath );
+            is->somMorteTocado = true;
+        }
         // Morte: últimos 3 frames de piscar/escurecer (duracao aumentada para 0.25s)
         is->animTimer += delta;
         if ( is->animTimer >= 0.25f ) {
@@ -214,6 +218,7 @@ void atualizarIceShard( IceShard *is, GameWorld *gw, float delta ) {
             // Dispara projétil na direção atual suavizada
             Vector2 pos = { cxIS, cyIS };
             dispararProjetil( gw, pos, is->currentAimAngle );
+            PlaySound( rm.sfxIceShardHit );
             
             is->shotsFired++;
             if ( is->shotsFired >= 3 ) { // Finalizou rajada

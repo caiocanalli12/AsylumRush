@@ -77,14 +77,30 @@ void destruirWolf( Wolf *w ) {
 static Jogador *obterAlvoProximo( Wolf *w, GameWorld *gw ) {
     Jogador *j = gw->jogador;
     Belial *b = gw->belial;
-    bool jValido = ( j != NULL && j->ativo );
-    bool bValido = ( gw->modo2Jogadores && b != NULL && b->ativo );
+    bool jValido = ( j != NULL && j->ativo && j->ret.x > -1000.0f );
+    bool bValido = ( b != NULL && b->ativo && b->ret.x > -1000.0f );
 
     if ( jValido && bValido ) {
         float cxW = w->ret.x + w->ret.width / 2.0f;
+        float cyW = w->ret.y + w->ret.height;
         float cxJ = j->ret.x + j->ret.width / 2.0f;
+        float cyJ = j->ret.y + j->ret.height;
         float cxB = b->ret.x + b->ret.width / 2.0f;
-        if ( fabsf( cxJ - cxW ) < fabsf( cxB - cxW ) ) {
+        float cyB = b->ret.y + b->ret.height;
+
+        // Distancia Manhattan com peso no eixo Y para priorizar quem esta na mesma profundidade
+        float distJ = fabsf( cxJ - cxW ) + fabsf( cyJ - cyW ) * 1.5f;
+        float distB = fabsf( cxB - cxW ) + fabsf( cyB - cyW ) * 1.5f;
+
+        // Histerese para evitar que o lobo fique alternando alvos rapidamente
+        if ( fabsf( distJ - distB ) < 60.0f ) {
+            bool dirJ = ( cxJ > cxW );
+            bool dirB = ( cxB > cxW );
+            if ( w->olhandoParaDireita == dirJ ) return j;
+            if ( w->olhandoParaDireita == dirB ) return (Jogador*) b;
+        }
+
+        if ( distJ < distB ) {
             return j;
         } else {
             return (Jogador*) b;
@@ -226,6 +242,7 @@ void atualizarWolf( Wolf *w, GameWorld *gw, float delta ) {
                 w->vel.x = direcaoAlvoDireita ? 300.0f : -300.0f; // Avanço do bote
                 w->vel.y = 0.0f;
                 w->olhandoParaDireita = direcaoAlvoDireita;
+                w->somAtaqueTocado = false;
             } else {
                 // IA de Movimentação para alcançar a distância ideal
                 if ( w->attackCooldown <= 0.0f ) {
@@ -291,8 +308,27 @@ void atualizarWolf( Wolf *w, GameWorld *gw, float delta ) {
         w->vel.x = Lerp(w->vel.x, 0.0f, delta * 5.0f);
         w->vel.y = Lerp(w->vel.y, 0.0f, delta * 5.0f);
     }
+    
+    // Aplica gravidade se não tiver chão (em qualquer estado livre)
+    if ( w->estado != ESTADO_WOLF_MORRENDO && w->estado != ESTADO_WOLF_TOMANDO_GOLPE && w->estado != ESTADO_WOLF_ATACANDO ) {
+        if ( !wolfNoChao(w, gw->mapa) ) {
+            w->puloVel += gw->gravidade * delta;
+            w->puloY += w->puloVel * delta;
+            if ( w->puloY > 600.0f ) {
+                w->ativo = false; // Cai no buraco e morre
+            }
+        } else if ( w->puloY > 0.0f ) {
+            w->puloY = 0.0f;
+            w->puloVel = 0.0f;
+        }
+    }
 
+    // Update de estados visuais
     if ( w->estado == ESTADO_WOLF_ATACANDO ) {
+        if (!w->somAtaqueTocado) {
+            PlaySound( rm.sfxWolfAttack );
+            w->somAtaqueTocado = true;
+        }
         // Animação de ataque: Linha 2 (index 1), frames 0 a 9
         w->ret.x += w->vel.x * delta;
         w->ret.y += w->vel.y * delta; // Ensure depth movement during attack arc
